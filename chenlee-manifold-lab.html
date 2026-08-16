@@ -1,0 +1,1618 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chen-Lee Manifold Lab</title>
+  <script>
+    if (window.location.protocol === "file:") {
+      window.location.replace("http://127.0.0.1:5177/chenlee-manifold-lab.html");
+    }
+  </script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "/node_modules/three/build/three.module.js",
+        "three/addons/": "/node_modules/three/examples/jsm/"
+      }
+    }
+  </script>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    html,
+    body {
+      width: 100%;
+      margin: 0;
+      background: #05070d;
+    }
+
+    html {
+      min-height: 100%;
+    }
+
+    body {
+      min-height: 260vh;
+      overflow-x: hidden;
+      overflow-y: auto;
+      scrollbar-color: rgba(87, 215, 255, 0.35) #05070d;
+    }
+
+    .scroll-lab {
+      height: 260vh;
+      background: #05070d;
+    }
+
+    .sticky-stage {
+      position: sticky;
+      top: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: #05070d;
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      background: #05070d;
+    }
+
+    .panel {
+      position: fixed;
+      left: 18px;
+      top: 18px;
+      width: min(380px, calc(100vw - 36px));
+      display: grid;
+      gap: 11px;
+      padding: 14px;
+      border: 1px solid rgba(220, 232, 242, 0.16);
+      border-radius: 8px;
+      background: rgba(5, 7, 13, 0.76);
+      backdrop-filter: blur(12px);
+      box-sizing: border-box;
+      color: rgba(220, 232, 242, 0.78);
+      font-size: 12px;
+      letter-spacing: 0;
+      user-select: none;
+      z-index: 2;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 112px 1fr;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .debug-row,
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .debug-row {
+      grid-template-columns: 1fr auto;
+    }
+
+    input,
+    select,
+    button {
+      min-width: 0;
+      height: 32px;
+      border: 1px solid rgba(220, 232, 242, 0.2);
+      border-radius: 6px;
+      background: rgba(220, 232, 242, 0.06);
+      color: #dce8f2;
+      font: inherit;
+      box-sizing: border-box;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    input[type="range"] {
+      height: 20px;
+      accent-color: #57d7ff;
+    }
+
+    input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: #57d7ff;
+    }
+
+    select {
+      padding: 0 8px;
+    }
+
+    .debug-value {
+      color: #dce8f2;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+  </style>
+</head>
+<body>
+  <section id="scrollLab" class="scroll-lab">
+    <div id="stickyStage" class="sticky-stage"></div>
+  </section>
+
+  <div class="panel" aria-label="chen lee manifold lab controls">
+    <div class="row">
+      <span>Progress</span>
+      <input id="progress" type="range" min="0" max="1" step="0.001" value="0" />
+    </div>
+    <div class="actions">
+      <button id="autoplay" type="button">Autoplay off</button>
+      <button id="pause" type="button">Pause</button>
+    </div>
+    <div class="row">
+      <span>Speed</span>
+      <input id="speed" type="range" min="0.15" max="2.2" step="0.01" value="0.72" />
+    </div>
+    <div class="row">
+      <span>Particles</span>
+      <select id="quality" aria-label="particle count">
+        <option value="8000">8000</option>
+        <option value="15000" selected>15000</option>
+        <option value="25000">25000</option>
+      </select>
+    </div>
+    <div class="row">
+      <span>Line density</span>
+      <input id="lineDensity" type="range" min="0" max="1" step="0.01" value="0.18" />
+    </div>
+    <label class="toggle-row">
+      <span>Breathing Pulse</span>
+      <input id="breathingPulse" type="checkbox" checked />
+    </label>
+    <div class="row">
+      <span>Depth scale</span>
+      <input id="depthScale" type="range" min="0.55" max="1.85" step="0.01" value="1.12" />
+    </div>
+    <div class="row">
+      <span>Rotation speed</span>
+      <input id="rotationSpeed" type="range" min="0" max="1.4" step="0.01" value="0.30" />
+    </div>
+    <div class="row">
+      <span>Parallax speed</span>
+      <input id="parallaxSpeed" type="range" min="0" max="1.2" step="0.01" value="0.22" />
+    </div>
+    <label class="toggle-row">
+      <span>Scroll progress test</span>
+      <input id="scrollTest" type="checkbox" />
+    </label>
+    <div class="debug-row">
+      <span>FPS</span>
+      <span id="debugFps" class="debug-value">0</span>
+    </div>
+    <div class="debug-row">
+      <span>particleCount</span>
+      <span id="debugCount" class="debug-value">15000</span>
+    </div>
+    <div class="debug-row">
+      <span>morphProgress</span>
+      <span id="debugMorph" class="debug-value">0.000</span>
+    </div>
+    <div class="debug-row">
+      <span>inputMode</span>
+      <span id="debugMode" class="debug-value">slider</span>
+    </div>
+    <div class="debug-row">
+      <span>targetProgress</span>
+      <span id="debugTarget" class="debug-value">0.000</span>
+    </div>
+    <div class="debug-row">
+      <span>displayedProgress</span>
+      <span id="debugDisplayed" class="debug-value">0.000</span>
+    </div>
+    <div class="debug-row">
+      <span>rawSliderValue</span>
+      <span id="debugSlider" class="debug-value">0.000</span>
+    </div>
+    <div class="debug-row">
+      <span>autoplayProgress</span>
+      <span id="debugAutoplay" class="debug-value">0.000</span>
+    </div>
+    <div class="debug-row">
+      <span>scrollProgress</span>
+      <span id="debugScroll" class="debug-value">0.000</span>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from "three";
+    import {
+      loadRunnerAssets,
+      updateRunnerParticles,
+      getRunnerParticleTargets,
+      getRunnerBounds,
+      setRunnerQuality,
+    } from "./runner-model.js";
+
+    if ("scrollRestoration" in history) {
+      history.scrollRestoration = "manual";
+    }
+    window.scrollTo(0, 0);
+
+    const TAU = Math.PI * 2;
+    const FLOW_WIDTH = 1.34;
+    const DEFAULT_QUALITY = 15000;
+    const CHEN_POINTS = 120000;
+    const CHEN_TRANSIENT = 8000;
+    const CHEN_DT = 0.0036;
+    const MAX_MANIFOLD_LINES = 1400;
+    const BREATH_CYCLE = 6.18;
+    const palette = {
+      baseWhiteBlue: [0.8627, 0.9098, 0.949],
+      activeCyan: [0.3412, 0.8431, 1],
+      amberCadence: [0.9647, 0.6314, 0.2275],
+      roseAccent: [0.8471, 0.4353, 0.6235],
+    };
+
+    const WAVE_TABLE_SIZE = 4096;
+    const WAVE_TABLE_MASK = WAVE_TABLE_SIZE - 1;
+    const waveTable = new Float32Array(WAVE_TABLE_SIZE);
+    for (let i = 0; i < WAVE_TABLE_SIZE; i++) {
+      waveTable[i] = Math.sin((i / WAVE_TABLE_SIZE) * TAU);
+    }
+
+    const scrollLab = document.querySelector("#scrollLab");
+    const stickyStage = document.querySelector("#stickyStage");
+    const controlProgress = document.querySelector("#progress");
+    const controlAutoplay = document.querySelector("#autoplay");
+    const controlPause = document.querySelector("#pause");
+    const controlSpeed = document.querySelector("#speed");
+    const controlQuality = document.querySelector("#quality");
+    const controlLineDensity = document.querySelector("#lineDensity");
+    const controlBreathingPulse = document.querySelector("#breathingPulse");
+    const controlDepthScale = document.querySelector("#depthScale");
+    const controlRotationSpeed = document.querySelector("#rotationSpeed");
+    const controlParallaxSpeed = document.querySelector("#parallaxSpeed");
+    const controlScrollTest = document.querySelector("#scrollTest");
+    const debugFps = document.querySelector("#debugFps");
+    const debugCount = document.querySelector("#debugCount");
+    const debugMorph = document.querySelector("#debugMorph");
+    const debugMode = document.querySelector("#debugMode");
+    const debugTarget = document.querySelector("#debugTarget");
+    const debugDisplayed = document.querySelector("#debugDisplayed");
+    const debugSlider = document.querySelector("#debugSlider");
+    const debugAutoplay = document.querySelector("#debugAutoplay");
+    const debugScroll = document.querySelector("#debugScroll");
+
+    controlProgress.value = "0";
+    controlAutoplay.textContent = "Autoplay off";
+    controlPause.textContent = "Pause";
+    controlSpeed.value = "0.72";
+    controlQuality.value = String(DEFAULT_QUALITY);
+    controlLineDensity.value = "0.18";
+    controlBreathingPulse.checked = true;
+    controlDepthScale.value = "1.12";
+    controlRotationSpeed.value = "0.30";
+    controlParallaxSpeed.value = "0.22";
+    controlScrollTest.checked = false;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x05070d, 1);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    stickyStage.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color("#05070D");
+
+    const fieldGroup = new THREE.Group();
+    scene.add(fieldGroup);
+
+    const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.01, 100);
+    camera.position.set(2.8, 0.04, 0);
+    camera.lookAt(0, 0, 0);
+
+    let geometry;
+    let material;
+    let points;
+    let lineGeometry;
+    let lineMaterial;
+    let lineSegments;
+    let positions = new Float32Array(0);
+    let colors = new Float32Array(0);
+    let sizes = new Float32Array(0);
+    let linePositions = new Float32Array(0);
+    let lineAlphas = new Float32Array(0);
+    let lineCutoffs = new Float32Array(0);
+    let lineVisibility = new Float32Array(0);
+    let flowFeatures = [];
+    let chenBindings = [];
+    let manifoldBindings = [];
+    let manifoldStrands = [];
+    let linePairs = new Uint32Array(0);
+    let chenPoints = new Float32Array(0);
+    let chenPointBuckets = null;
+    let startedAt = performance.now();
+    let pausedAt = 0;
+    let paused = false;
+    let autoplay = false;
+    let displayedProgress = 0;
+    let targetProgress = 0;
+    let rawScrollProgress = 0;
+    let inputMode = "slider";
+    let rawSliderValue = 0;
+    let autoplayProgress = 0;
+    let scrollProgress = 0;
+    let lastProgressWriter = "slider";
+    let lastDisplayedProgress = 0;
+    let fps = 60;
+    let previousFrameTime = performance.now();
+    let previousDebugTime = 0;
+    let frameIndex = 0;
+    let lineCount = 0;
+    let manualLineDensity = Number(controlLineDensity.value);
+    let lineDensityAutoActive = false;
+    let steadyStartTime = 0;
+    let loadingQuality = false;
+    let viewHalfWidth = 1;
+    let viewHalfHeight = 1;
+    const PROGRESS_SMOOTHING = 0.075;
+
+    const flowPosition = new THREE.Vector3();
+    const chenPosition = new THREE.Vector3();
+    const streamPosition = new THREE.Vector3();
+    const orbitAheadPosition = new THREE.Vector3();
+    const tangentPosition = new THREE.Vector3();
+    const flowStyle = { w0: 0, w1: 0, w2: 0, w3: 0 };
+    const chenStyle = { w0: 0, w1: 0, w2: 0, w3: 0 };
+    const manifoldStyle = { w0: 0, w1: 0, w2: 0, w3: 0 };
+    const lineColorLow = new THREE.Color(0x173247);
+    const lineColorPeak = new THREE.Color(0xbfefff);
+    const lineColorCurrent = new THREE.Color(0x173247);
+    const mouse = {
+      active: false,
+      ndcX: 0,
+      ndcY: 0,
+      worldY: 0,
+      worldZ: 0,
+    };
+
+    function clamp01(value) {
+      return Math.min(1, Math.max(0, value));
+    }
+
+    function smootherstep(value) {
+      const t = clamp01(value);
+      return t * t * t * (t * (t * 6 - 15) + 10);
+    }
+
+    function smoothstepRange(min, max, value) {
+      const t = mapRange(value, min, max);
+      return t * t * (3 - 2 * t);
+    }
+
+    function mapRange(value, min, max) {
+      return clamp01((value - min) / (max - min));
+    }
+
+    function hash01(id, salt) {
+      const x = Math.sin((id + 1) * 127.1 + salt * 311.7) * 43758.5453123;
+      return x - Math.floor(x);
+    }
+
+    function mix(a, b, t) {
+      return a + (b - a) * t;
+    }
+
+    function fastSin01(unitPhase) {
+      return waveTable[Math.floor((unitPhase - Math.floor(unitPhase)) * WAVE_TABLE_SIZE) & WAVE_TABLE_MASK];
+    }
+
+    function fastCos01(unitPhase) {
+      return fastSin01(unitPhase + 0.25);
+    }
+
+    function permuteHash(id, salt) {
+      let x = ((id + 1) * 2654435761) >>> 0;
+      x ^= (salt * 2246822519) >>> 0;
+      x ^= x >>> 16;
+      x = Math.imul(x, 2246822519) >>> 0;
+      x ^= x >>> 13;
+      x = Math.imul(x, 3266489917) >>> 0;
+      return (x ^ (x >>> 16)) >>> 0;
+    }
+
+    function setRgbFromWeights(output, offset, w0, w1, w2, w3) {
+      const total = Math.max(0.0001, w0 + w1 + w2 + w3);
+      const b = w0 / total;
+      const c = w1 / total;
+      const a = w2 / total;
+      const r = w3 / total;
+      output[offset] =
+        palette.baseWhiteBlue[0] * b +
+        palette.activeCyan[0] * c +
+        palette.amberCadence[0] * a +
+        palette.roseAccent[0] * r;
+      output[offset + 1] =
+        palette.baseWhiteBlue[1] * b +
+        palette.activeCyan[1] * c +
+        palette.amberCadence[1] * a +
+        palette.roseAccent[1] * r;
+      output[offset + 2] =
+        palette.baseWhiteBlue[2] * b +
+        palette.activeCyan[2] * c +
+        palette.amberCadence[2] * a +
+        palette.roseAccent[2] * r;
+    }
+
+    function chenDeriv(x, y, z) {
+      return [
+        5 * x - y * z,
+        -10 * y + x * z,
+        -0.38 * z + (x * y) / 3,
+      ];
+    }
+
+    function rk4Step(p, dt) {
+      const k1 = chenDeriv(p[0], p[1], p[2]);
+      const k2 = chenDeriv(
+        p[0] + k1[0] * dt * 0.5,
+        p[1] + k1[1] * dt * 0.5,
+        p[2] + k1[2] * dt * 0.5
+      );
+      const k3 = chenDeriv(
+        p[0] + k2[0] * dt * 0.5,
+        p[1] + k2[1] * dt * 0.5,
+        p[2] + k2[2] * dt * 0.5
+      );
+      const k4 = chenDeriv(
+        p[0] + k3[0] * dt,
+        p[1] + k3[1] * dt,
+        p[2] + k3[2] * dt
+      );
+
+      p[0] += (k1[0] + 2 * k2[0] + 2 * k3[0] + k4[0]) * dt / 6;
+      p[1] += (k1[1] + 2 * k2[1] + 2 * k3[1] + k4[1]) * dt / 6;
+      p[2] += (k1[2] + 2 * k2[2] + 2 * k3[2] + k4[2]) * dt / 6;
+    }
+
+    function buildChenLeeTrajectory() {
+      const raw = new Float32Array(CHEN_POINTS * 3);
+      const p = [-0.1, -0.1, -5];
+      const min = [Infinity, Infinity, Infinity];
+      const max = [-Infinity, -Infinity, -Infinity];
+
+      for (let i = 0; i < CHEN_TRANSIENT + CHEN_POINTS; i++) {
+        rk4Step(p, CHEN_DT);
+        if (i < CHEN_TRANSIENT) continue;
+
+        const k = (i - CHEN_TRANSIENT) * 3;
+        raw[k] = p[0];
+        raw[k + 1] = p[1];
+        raw[k + 2] = p[2];
+
+        min[0] = Math.min(min[0], p[0]);
+        min[1] = Math.min(min[1], p[1]);
+        min[2] = Math.min(min[2], p[2]);
+        max[0] = Math.max(max[0], p[0]);
+        max[1] = Math.max(max[1], p[1]);
+        max[2] = Math.max(max[2], p[2]);
+      }
+
+      const center = [
+        (min[0] + max[0]) * 0.5,
+        (min[1] + max[1]) * 0.5,
+        (min[2] + max[2]) * 0.5,
+      ];
+      const half = Math.max(
+        (max[0] - min[0]) * 0.5,
+        (max[1] - min[1]) * 0.5,
+        (max[2] - min[2]) * 0.5,
+        0.0001
+      );
+
+      chenPoints = new Float32Array(CHEN_POINTS * 3);
+      chenPointBuckets = { inner: [], outer: [], crossing: [], ambient: [] };
+
+      for (let i = 0; i < CHEN_POINTS; i++) {
+        const k = i * 3;
+        const nx = (raw[k] - center[0]) / half;
+        const ny = (raw[k + 1] - center[1]) / half;
+        const nz = (raw[k + 2] - center[2]) / half;
+        const px = nz * 0.82 + ny * 0.08;
+        const py = ny * 0.76 + nz * 0.10;
+        const pz = nx * 1.08;
+
+        chenPoints[k] = px;
+        chenPoints[k + 1] = py;
+        chenPoints[k + 2] = pz;
+
+        const radial = Math.sqrt(py * py + pz * pz);
+        const centerPass = Math.abs(pz) < 0.22 && Math.abs(py) < 0.28;
+        const phase = i / CHEN_POINTS;
+
+        if (radial < 0.48) chenPointBuckets.inner.push(phase);
+        if (radial > 0.48 && radial < 0.98) chenPointBuckets.outer.push(phase);
+        if (centerPass || radial < 0.32) chenPointBuckets.crossing.push(phase);
+        if (radial > 0.72 || Math.abs(px) > 0.38) chenPointBuckets.ambient.push(phase);
+      }
+
+      for (const key of Object.keys(chenPointBuckets)) {
+        if (!chenPointBuckets[key].length) chenPointBuckets[key].push(0);
+      }
+    }
+
+    function sampleChenAtPhase(phase, target, radialScale = 1) {
+      const t = ((phase % 1) + 1) % 1;
+      const f = t * (CHEN_POINTS - 1);
+      const i0 = Math.floor(f);
+      const i1 = (i0 + 1) % CHEN_POINTS;
+      const mixT = f - i0;
+      const k0 = i0 * 3;
+      const k1 = i1 * 3;
+      const x = mix(chenPoints[k0], chenPoints[k1], mixT) * radialScale;
+      const y = mix(chenPoints[k0 + 1], chenPoints[k1 + 1], mixT) * radialScale;
+      const z = mix(chenPoints[k0 + 2], chenPoints[k1 + 2], mixT) * radialScale;
+      target.set(x, y, z);
+      return target;
+    }
+
+    function choosePhaseFromBucket(bucket, id, salt) {
+      const phases = chenPointBuckets[bucket] || chenPointBuckets.outer;
+      const index = permuteHash(id, salt) % phases.length;
+      const jitter = (((permuteHash(id, salt + 1) / 0xffffffff) || 0) - 0.5) * 0.0018;
+      return (phases[index] + jitter + 1) % 1;
+    }
+
+    function segmentMorphProgress(progress) {
+      const p0 = clamp01(progress);
+      const chenHoldP = 1 - smoothstepRange(0.00, 0.18, p0);
+      const lineStretchP = smoothstepRange(0.00, 0.18, p0);
+      const unfoldP = smoothstepRange(0.18, 0.42, p0);
+      const manifoldP = smoothstepRange(0.42, 0.72, p0);
+      const networkP = smoothstepRange(0.18, 0.72, p0);
+      const settleP = smoothstepRange(0.72, 1.0, p0);
+      const lineP = mix(0.58, 1.0, smoothstepRange(0.18, 0.84, p0));
+      const chenTraceP = 1 - smoothstepRange(0.44, 0.78, p0);
+
+      return {
+        p: p0,
+        chenHoldP,
+        lineStretchP,
+        unfoldP,
+        manifoldP,
+        networkP,
+        lineP,
+        chenTraceP,
+        settleP,
+        blend: networkP,
+      };
+    }
+
+    function updateScrollTarget() {
+      const maxScroll = Math.max(1, scrollLab.offsetHeight - window.innerHeight);
+      rawScrollProgress = clamp01(window.scrollY / maxScroll);
+      scrollProgress = rawScrollProgress;
+    }
+
+    function setInputMode(mode) {
+      inputMode = mode;
+      autoplay = mode === "autoplay";
+      controlAutoplay.textContent = autoplay ? "Autoplay on" : "Autoplay off";
+      controlScrollTest.checked = mode === "scroll";
+    }
+
+    function writeTargetProgress(source, value) {
+      const next = clamp01(value);
+
+      if (source !== inputMode) {
+        console.warn(`[progress] ignored ${source} write while inputMode is ${inputMode}`);
+        return;
+      }
+
+      if (source !== lastProgressWriter && next < targetProgress - 0.06) {
+        console.warn(`[progress] ${source} moved target backward from ${targetProgress.toFixed(3)} to ${next.toFixed(3)}`);
+      }
+
+      targetProgress = next;
+      lastProgressWriter = source;
+    }
+
+    function syncSliderTo(value) {
+      rawSliderValue = clamp01(value);
+      controlProgress.value = rawSliderValue.toFixed(3);
+    }
+
+    function autoplayValue(time, speed) {
+      const phase = time * 0.13 * speed;
+      return 0.5 - 0.5 * Math.cos(TAU * (phase - Math.floor(phase)));
+    }
+
+    function updateEffectiveLineDensity(time, progress) {
+      const shouldAuto = controlBreathingPulse.checked && progress >= 0.995;
+
+      if (!shouldAuto) {
+        if (lineDensityAutoActive) {
+          controlLineDensity.value = manualLineDensity.toFixed(3);
+        }
+        lineDensityAutoActive = false;
+        return manualLineDensity;
+      }
+
+      if (!lineDensityAutoActive) {
+        steadyStartTime = time;
+        lineDensityAutoActive = true;
+      }
+
+      const cyclePhase = (((time - steadyStartTime) / BREATH_CYCLE) % 1 + 1) % 1;
+      const breath = 0.5 - 0.5 * Math.cos(TAU * cyclePhase);
+      controlLineDensity.value = breath.toFixed(3);
+      return breath;
+    }
+
+    function buildBoneProfiles(targets, minY, height) {
+      const profiles = new Map();
+
+      for (let i = 0; i < targets.count; i++) {
+        const binding = targets.bindings[i];
+        const bone = binding ? binding.dominantBone : -1;
+        if (bone < 0) continue;
+
+        const k = i * 3;
+        const yNorm = (targets.positions[k + 1] - minY) / height;
+        const vx = targets.velocityHints[k];
+        const vy = targets.velocityHints[k + 1];
+        const vz = targets.velocityHints[k + 2];
+        const speed = Math.sqrt(vx * vx + vy * vy + vz * vz);
+
+        let profile = profiles.get(bone);
+        if (!profile) {
+          profile = { count: 0, y: 0, speed: 0 };
+          profiles.set(bone, profile);
+        }
+
+        profile.count += 1;
+        profile.y += yNorm;
+        profile.speed += speed;
+      }
+
+      let maxSpeed = 0.0001;
+      for (const profile of profiles.values()) {
+        profile.y /= profile.count;
+        profile.speed /= profile.count;
+        maxSpeed = Math.max(maxSpeed, profile.speed);
+      }
+
+      for (const profile of profiles.values()) {
+        profile.speedNorm = profile.speed / maxSpeed;
+      }
+
+      return profiles;
+    }
+
+    function regionForParticle(i, yNorm, speedNorm, boneProfile) {
+      const boneY = boneProfile ? boneProfile.y : yNorm;
+      const boneSpeed = boneProfile ? boneProfile.speedNorm : speedNorm;
+      const driftCandidate = hash01(i, 40) < 0.045 || (speedNorm > 0.78 && hash01(i, 41) < 0.16);
+
+      if (yNorm < 0.155 || boneY < 0.13) return "foot";
+      if (driftCandidate && yNorm > 0.18 && yNorm < 0.82) return "ambient";
+      if (yNorm < 0.46 || boneY < 0.43) return "leg";
+      if (yNorm > 0.80) return "chest";
+      if (yNorm > 0.31 && yNorm < 0.73 && (speedNorm > 0.36 || boneSpeed > 0.34)) return "arm";
+      if (yNorm > 0.48 && yNorm < 0.78) return "chest";
+      return "torso";
+    }
+
+    function laneForRegion(region) {
+      if (region === "arm") return "upper";
+      if (region === "leg") return "lower";
+      if (region === "foot") return "foot";
+      if (region === "ambient") return "ambient";
+      return "main";
+    }
+
+    function buildFlowFeatures() {
+      updateRunnerParticles(0);
+      const targets = getRunnerParticleTargets();
+      const bounds = getRunnerBounds();
+      const minY = bounds.min[1];
+      const height = Math.max(0.0001, bounds.size[1]);
+      const profiles = buildBoneProfiles(targets, minY, height);
+      const speeds = new Float32Array(targets.count);
+      let maxSpeed = 0.0001;
+
+      for (let i = 0; i < targets.count; i++) {
+        const k = i * 3;
+        const vx = targets.velocityHints[k];
+        const vy = targets.velocityHints[k + 1];
+        const vz = targets.velocityHints[k + 2];
+        const speed = Math.sqrt(vx * vx + vy * vy + vz * vz);
+        speeds[i] = speed;
+        maxSpeed = Math.max(maxSpeed, speed);
+      }
+
+      flowFeatures = new Array(targets.count);
+      const buckets = { main: [], upper: [], lower: [], foot: [], ambient: [] };
+
+      for (let i = 0; i < targets.count; i++) {
+        const k = i * 3;
+        const yNorm = (targets.positions[k + 1] - minY) / height;
+        const speedNorm = speeds[i] / maxSpeed;
+        const binding = targets.bindings[i];
+        const boneProfile = binding ? profiles.get(binding.dominantBone) : null;
+        const region = regionForParticle(i, yNorm, speedNorm, boneProfile);
+        const lane = laneForRegion(region);
+        const z = targets.positions[k + 2];
+        const x = targets.positions[k];
+        const feature = {
+          id: i,
+          lane,
+          region,
+          yNorm,
+          speedNorm,
+          u: 0,
+          phase: hash01(i, 50) * TAU,
+          phase2: hash01(i, 51) * TAU,
+          spread: hash01(i, 52),
+          depthSign: hash01(i, 53) < 0.5 ? -1 : 1,
+          delay: hash01(i, 54) * 0.07,
+          footSpark: region === "foot" && hash01(i, 55) < 0.36,
+          sortKey: z + x * 0.2 + hash01(i, 56) * 0.08,
+          lastAmber: 0,
+          flowSize: mix(0.00085, 0.00175, hash01(i, 57)),
+        };
+
+        if (lane === "ambient") {
+          feature.sortKey = hash01(i, 58) * 2 - 1;
+          feature.flowSize = mix(0.00065, 0.0013, hash01(i, 59));
+        }
+
+        buckets[lane].push(feature);
+        flowFeatures[i] = feature;
+      }
+
+      for (const lane of Object.values(buckets)) {
+        lane.sort((a, b) => a.sortKey - b.sortKey);
+        const denom = Math.max(1, lane.length);
+        for (let rank = 0; rank < lane.length; rank++) {
+          lane[rank].u = clamp01((rank + 0.5) / denom + (hash01(lane[rank].id, 60) - 0.5) * 0.018);
+        }
+      }
+    }
+
+    function buildChenBindings() {
+      const targets = getRunnerParticleTargets();
+      chenBindings = new Array(targets.count);
+
+      for (let i = 0; i < targets.count; i++) {
+        const feature = flowFeatures[i];
+        let bucket = "outer";
+        let radialScale = 0.86;
+        let drift = 0.010;
+
+        if (feature.lane === "main") {
+          bucket = "inner";
+          radialScale = feature.region === "chest" ? 0.66 : 0.72;
+          drift = 0.009;
+        } else if (feature.lane === "upper" || feature.lane === "lower") {
+          bucket = "outer";
+          radialScale = feature.lane === "upper" ? 0.94 : 1.02;
+          drift = 0.0115;
+        } else if (feature.lane === "foot") {
+          bucket = "crossing";
+          radialScale = 0.82;
+          drift = 0.0135;
+        } else if (feature.lane === "ambient") {
+          bucket = "ambient";
+          radialScale = mix(1.02, 1.22, hash01(i, 72));
+          drift = 0.0075;
+        }
+
+        chenBindings[i] = {
+          phase: choosePhaseFromBucket(bucket, i, 70),
+          drift,
+          radialScale,
+          orbitOffset: (hash01(i, 73) - 0.5) * 0.012,
+          lineEligible: hash01(i, 74) < 0.09,
+        };
+      }
+    }
+
+    function buildManifoldBindings() {
+      const targets = getRunnerParticleTargets();
+      const strandCount = 18;
+      manifoldBindings = new Array(targets.count);
+      manifoldStrands = Array.from({ length: strandCount }, () => []);
+
+      for (let i = 0; i < targets.count; i++) {
+        const feature = flowFeatures[i];
+        const laneOffset =
+          feature.lane === "upper" ? 3 :
+          feature.lane === "lower" ? 10 :
+          feature.lane === "foot" ? 15 :
+          feature.lane === "ambient" ? 6 : 0;
+        const strand = (laneOffset + (permuteHash(i, 101) % (feature.lane === "ambient" ? strandCount : 5))) % strandCount;
+        const strandNorm = strandCount <= 1 ? 0.5 : strand / (strandCount - 1);
+        const u = hash01(i, 102);
+        const depthLayer = hash01(i, 103);
+        const warmNode = (feature.lane === "foot" && hash01(i, 104) < 0.28) || hash01(i, 105) < 0.018;
+        const binding = {
+          id: i,
+          strand,
+          u,
+          rank: 0,
+          strandNorm,
+          strandY: mix(-0.74, 0.74, strandNorm) + (hash01(i, 106) - 0.5) * 0.026,
+          width: mix(1.46, 1.92, hash01(i, 107)),
+          depth: mix(-0.52, 0.58, depthLayer),
+          depthLayer,
+          phaseA: hash01(i, 108) * TAU,
+          phaseB: hash01(i, 109) * TAU,
+          phaseC: hash01(i, 110) * TAU,
+          phaseD: hash01(i, 111) * TAU,
+          freqA: 1.0 + (permuteHash(i, 112) % 5),
+          freqB: 2.0 + (permuteHash(i, 113) % 7),
+          freqC: 3.0 + (permuteHash(i, 114) % 9),
+          flowSpeed: mix(0.0045, 0.014, hash01(i, 115)),
+          parallaxSign: hash01(i, 116) < 0.5 ? -1 : 1,
+          warmNode,
+          size: mix(0.0007, warmNode ? 0.0021 : 0.00145, hash01(i, 117)),
+        };
+
+        manifoldBindings[i] = binding;
+        manifoldStrands[strand].push(binding);
+      }
+
+      for (const strand of manifoldStrands) {
+        strand.sort((a, b) => a.u - b.u);
+        const denom = Math.max(1, strand.length - 1);
+        for (let rank = 0; rank < strand.length; rank++) {
+          strand[rank].rank = rank / denom;
+        }
+      }
+    }
+
+    function computeFlowPosition(feature, time, target) {
+      const breath = 0.5 + 0.5 * fastSin01(time * 0.22);
+      const local = (feature.u + time * 0.030 + feature.speedNorm * 0.016) % 1;
+      const centered = local * 2 - 1;
+      const lanePhase =
+        feature.lane === "upper" ? 0.18 :
+        feature.lane === "lower" ? 0.52 :
+        feature.lane === "foot" ? 0.76 :
+        feature.lane === "ambient" ? feature.spread : 0.0;
+      let z = centered * FLOW_WIDTH;
+      let x = 0;
+      let y = 0;
+      let laneAmp = 0.08;
+      let laneBreath = 0.016;
+      let laneThickness = 0.045;
+
+      if (feature.lane === "main") {
+        y = 0.005;
+        laneAmp = feature.region === "chest" ? 0.135 : 0.105;
+        laneBreath = feature.region === "chest" ? 0.038 : 0.022;
+        laneThickness = feature.region === "chest" ? 0.055 : 0.048;
+        x = (feature.spread - 0.5) * 0.035;
+      } else if (feature.lane === "upper") {
+        y = 0.27;
+        laneAmp = 0.092;
+        laneBreath = 0.016;
+        laneThickness = 0.040;
+        x = 0.018 * feature.depthSign + (feature.spread - 0.5) * 0.04;
+      } else if (feature.lane === "lower") {
+        y = -0.285;
+        laneAmp = 0.105;
+        laneBreath = 0.012;
+        laneThickness = 0.046;
+        x = -0.012 * feature.depthSign + (feature.spread - 0.5) * 0.042;
+      } else if (feature.lane === "foot") {
+        y = -0.47;
+        laneAmp = 0.072;
+        laneBreath = 0.008;
+        laneThickness = 0.030;
+        x = (feature.spread - 0.5) * 0.038;
+      } else {
+        z = centered * (FLOW_WIDTH + 0.22);
+        y = mix(-0.62, 0.54, hash01(feature.id, 61));
+        x = mix(-0.16, 0.16, hash01(feature.id, 62));
+        laneAmp = 0.026;
+        laneBreath = 0.016;
+      }
+
+      const primary = fastSin01(local * 1.35 - time * 0.105 + lanePhase);
+      const secondary = fastSin01(local * 3.7 + time * 0.055 + lanePhase * 0.72);
+      const inhaleCurl = fastSin01(local * 0.62 + breath * 0.18 + lanePhase * 0.38 + (feature.phase * 0.12) / TAU);
+      const envelope = 0.74 + breath * 0.34;
+      const pulseBase = 0.5 + 0.5 * fastSin01(local * 4.0 - time * 0.78 + feature.phase2 / TAU);
+      const pulse2 = pulseBase * pulseBase;
+      const pulse4 = pulse2 * pulse2;
+      const pulse = pulse4 * pulse4 * pulseBase;
+
+      y += (primary * 0.58 + secondary * 0.24 + inhaleCurl * 0.18) * laneAmp * envelope;
+      y += (breath - 0.5) * laneBreath;
+      y += (feature.spread - 0.5) * laneThickness;
+      x += fastSin01(local * 2.2 + time * 0.046 + feature.phase / TAU) * 0.018;
+      z += fastSin01(time * 0.08 + (feature.phase * 0.15) / TAU) * 0.012;
+
+      if (feature.lane === "foot") {
+        y += pulse * 0.15;
+        z += fastSin01(local * 8.0 - time * 1.05) * 0.018 * pulse;
+        feature.lastAmber = feature.footSpark ? pulse : 0;
+      } else {
+        feature.lastAmber = 0;
+      }
+
+      if (feature.lane === "ambient") {
+        y += fastSin01(time * 0.05 + feature.spread) * 0.032;
+        x += fastCos01(time * 0.04 + feature.u) * 0.032;
+      }
+
+      target.set(x, y, z);
+      return target;
+    }
+
+    function computeChenPosition(binding, feature, time, speed, target) {
+      const phase = binding.phase + time * speed * binding.drift + binding.orbitOffset;
+      sampleChenAtPhase(phase, target, binding.radialScale);
+
+      if (feature.lane === "ambient") {
+        const float = fastSin01(time * 0.035 + feature.spread) * 0.035;
+        target.x += (hash01(feature.id, 80) - 0.5) * 0.09;
+        target.y += float;
+        target.z += (hash01(feature.id, 81) - 0.5) * 0.10;
+      }
+
+      return target;
+    }
+
+    function computeUnfoldedChenPosition(binding, feature, chen, time, speed, segment, target) {
+      const phase = binding.phase + time * speed * binding.drift + binding.orbitOffset;
+      sampleChenAtPhase(phase + 0.0014 + feature.speedNorm * 0.0008, orbitAheadPosition, binding.radialScale);
+      tangentPosition.copy(orbitAheadPosition).sub(chen);
+      if (tangentPosition.lengthSq() < 0.000001) {
+        tangentPosition.set(0, 0, 1);
+      } else {
+        tangentPosition.normalize();
+      }
+
+      const laneSign =
+        feature.lane === "upper" ? 1 :
+        feature.lane === "lower" || feature.lane === "foot" ? -1 :
+        feature.lane === "ambient" ? (feature.depthSign > 0 ? 1 : -1) : 0;
+      const pull = segment.unfoldP;
+      const stretch = (0.18 + feature.speedNorm * 0.18 + hash01(feature.id, 118) * 0.12) * pull;
+      const open = (hash01(feature.id, 119) - 0.5) * pull;
+
+      target.set(
+        chen.x + tangentPosition.x * stretch + open * 0.10,
+        chen.y + tangentPosition.y * stretch + laneSign * 0.11 * pull + open * 0.05,
+        chen.z + tangentPosition.z * stretch * 1.55 + laneSign * 0.06 * pull
+      );
+      target.x *= mix(1.0, 0.86, pull);
+      target.y *= mix(1.0, 1.12, pull);
+      target.z *= mix(1.0, 1.24, pull);
+      return target;
+    }
+
+    function computeManifoldPosition(binding, feature, time, speed, depthScale, parallaxSpeed, target) {
+      const t = binding.u + time * speed * binding.flowSpeed;
+      const u = ((t % 1) + 1) % 1;
+      const open = u * 2 - 1;
+      const slow = time * (0.020 + parallaxSpeed * 0.026);
+      const highA = fastSin01(u * binding.freqA + slow + binding.phaseA / TAU);
+      const highB = fastCos01(u * binding.freqB - slow * 0.72 + binding.phaseB / TAU);
+      const highC = fastSin01(u * binding.freqC + slow * 0.44 + binding.phaseC / TAU);
+      const highD = fastCos01((u + binding.strandNorm) * 6.5 + slow * 0.31 + binding.phaseD / TAU);
+      const layerBreath = fastSin01(time * 0.018 + binding.strandNorm * 1.7 + binding.phaseA / TAU);
+      const strandCurl = fastSin01(open * 1.55 + binding.strandNorm * 2.2 + slow * 0.9);
+
+      let z = open * binding.width;
+      let y = binding.strandY * (0.92 + layerBreath * 0.09);
+      let x = binding.depth * depthScale;
+
+      z += (highA * 0.16 + highB * 0.08 + strandCurl * 0.12) * (0.72 + binding.depthLayer * 0.42);
+      y += highB * 0.12 + highC * 0.06 + strandCurl * 0.075;
+      x += (highC * 0.16 + highD * 0.10 + binding.parallaxSign * 0.035) * depthScale;
+
+      const contactMask = smoothstepRange(0.62, 0.90, z) * (1 - smoothstepRange(1.34, 1.68, z)) * (1 - smoothstepRange(0.18, 0.34, Math.abs(y)));
+      if (contactMask > 0) {
+        y += Math.sign(y || binding.parallaxSign) * contactMask * 0.20;
+        z += contactMask * 0.12;
+        x -= contactMask * 0.10 * depthScale;
+      }
+
+      if (feature.lane === "ambient") {
+        y += (hash01(feature.id, 120) - 0.5) * 0.16;
+        z += (hash01(feature.id, 121) - 0.5) * 0.18;
+        x += (hash01(feature.id, 122) - 0.5) * 0.16 * depthScale;
+      }
+
+      target.set(x, y, z);
+      return target;
+    }
+
+    function computeTwistedStreamPosition(flow, feature, time, target) {
+      const lanePhase =
+        feature.lane === "upper" ? 0.19 :
+        feature.lane === "lower" ? 0.47 :
+        feature.lane === "foot" ? 0.68 :
+        feature.lane === "ambient" ? 0.83 : 0.04;
+      const laneY =
+        feature.lane === "upper" ? 0.24 :
+        feature.lane === "lower" ? -0.24 :
+        feature.lane === "foot" ? -0.43 :
+        feature.lane === "ambient" ? mix(-0.54, 0.48, feature.spread) : 0.0;
+      const openU = (feature.u - 0.5) * 2;
+      const edgeTaper = 1 - Math.abs(openU) * 0.34;
+      const twist = openU * (2.35 + feature.speedNorm * 0.42) + lanePhase * TAU + time * 0.17;
+      const secondary = openU * 4.2 + feature.phase2 / TAU + lanePhase * 1.7 - time * 0.055;
+      const laneSpread = (feature.spread - 0.5);
+      const laneOffset = (feature.lane === "upper" || feature.lane === "lower")
+        ? (feature.lane === "upper" ? 0.05 : -0.05)
+        : 0;
+
+      target.z = openU * mix(0.82, 0.70, feature.speedNorm) + laneOffset;
+      target.z += fastSin01(secondary) * 0.055 * edgeTaper;
+      target.z += laneSpread * 0.035;
+      target.x = fastSin01(twist / TAU) * 0.23 * edgeTaper;
+      target.x += fastSin01(secondary * 0.37 + feature.spread) * 0.055;
+      target.x += feature.depthSign * mix(0.018, 0.052, feature.speedNorm);
+      target.y = mix(flow.y, laneY, 0.58);
+      target.y += fastCos01(twist / TAU + feature.spread * 0.11) * 0.082 * edgeTaper;
+      target.y += laneSpread * 0.026;
+
+      if (feature.lane === "ambient") {
+        target.x += laneSpread * 0.14;
+        target.y += fastSin01(time * 0.035 + feature.spread) * 0.045;
+        target.z += mix(-0.24, 0.24, hash01(feature.id, 82));
+      }
+
+      return target;
+    }
+
+    function flowWeights(feature) {
+      if (feature.lane === "foot") {
+        const amber = feature.footSpark ? 0.12 + feature.lastAmber * 0.48 : 0.02;
+        flowStyle.w0 = 0.64 - amber * 0.18;
+        flowStyle.w1 = 0.13;
+        flowStyle.w2 = amber;
+        flowStyle.w3 = 0.02;
+      } else if (feature.lane === "upper") {
+        flowStyle.w0 = 0.64;
+        flowStyle.w1 = 0.30;
+        flowStyle.w2 = 0.0;
+        flowStyle.w3 = 0.03;
+      } else if (feature.lane === "lower") {
+        flowStyle.w0 = 0.72;
+        flowStyle.w1 = 0.20;
+        flowStyle.w2 = 0.0;
+        flowStyle.w3 = 0.02;
+      } else if (feature.lane === "ambient") {
+        flowStyle.w0 = 0.52;
+        flowStyle.w1 = 0.22;
+        flowStyle.w2 = 0.0;
+        flowStyle.w3 = 0.10;
+      } else if (feature.region === "chest") {
+        flowStyle.w0 = 0.68;
+        flowStyle.w1 = 0.31;
+        flowStyle.w2 = 0.0;
+        flowStyle.w3 = 0.02;
+      } else {
+        flowStyle.w0 = 0.76;
+        flowStyle.w1 = 0.19;
+        flowStyle.w2 = 0.0;
+        flowStyle.w3 = 0.02;
+      }
+
+      return flowStyle;
+    }
+
+    function chenWeights(feature, binding) {
+      if (feature.lane === "foot") {
+        const amber = feature.footSpark ? 0.14 + feature.lastAmber * 0.34 : 0.03;
+        chenStyle.w0 = 0.56;
+        chenStyle.w1 = 0.22;
+        chenStyle.w2 = amber;
+        chenStyle.w3 = 0.08;
+      } else if (feature.lane === "ambient") {
+        chenStyle.w0 = 0.38;
+        chenStyle.w1 = 0.22;
+        chenStyle.w2 = 0.0;
+        chenStyle.w3 = 0.20;
+      } else if (binding.radialScale > 0.9) {
+        chenStyle.w0 = 0.56;
+        chenStyle.w1 = 0.27;
+        chenStyle.w2 = 0.0;
+        chenStyle.w3 = 0.12;
+      } else {
+        chenStyle.w0 = 0.66;
+        chenStyle.w1 = 0.29;
+        chenStyle.w2 = 0.0;
+        chenStyle.w3 = 0.04;
+      }
+
+      return chenStyle;
+    }
+
+    function manifoldWeights(feature, binding, time) {
+      const depthGlow = mix(0.06, 0.22, binding.depthLayer);
+      const cyan = feature.lane === "ambient" ? 0.16 : 0.24 + depthGlow;
+      const warm = binding.warmNode ? 0.10 + 0.20 * (0.5 + 0.5 * fastSin01(time * 0.11 + binding.phaseB / TAU)) : 0.0;
+
+      manifoldStyle.w0 = binding.warmNode ? 0.50 : mix(0.58, 0.76, 1 - binding.depthLayer);
+      manifoldStyle.w1 = cyan;
+      manifoldStyle.w2 = warm;
+      manifoldStyle.w3 = feature.lane === "ambient" ? 0.10 : 0.025;
+      return manifoldStyle;
+    }
+
+    function buildPointCloud() {
+      const targets = getRunnerParticleTargets();
+      positions = new Float32Array(targets.count * 3);
+      colors = new Float32Array(targets.count * 3);
+      sizes = new Float32Array(targets.count);
+
+      geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute("particleColor", new THREE.BufferAttribute(colors, 3));
+      geometry.setAttribute("particleSize", new THREE.BufferAttribute(sizes, 1));
+
+      material = new THREE.ShaderMaterial({
+        uniforms: {
+          uDpr: { value: Math.min(window.devicePixelRatio || 1, 2) },
+          uViewportHeight: { value: window.innerHeight },
+          uSizeScale: { value: 0.98 },
+        },
+        vertexShader: `
+          attribute vec3 particleColor;
+          attribute float particleSize;
+          varying vec3 vColor;
+          uniform float uDpr;
+          uniform float uViewportHeight;
+          uniform float uSizeScale;
+
+          void main() {
+            vColor = particleColor;
+            vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+            gl_Position = projectionMatrix * mvPosition;
+            gl_PointSize = max(1.0, particleSize * uViewportHeight * uSizeScale * uDpr);
+          }
+        `,
+        fragmentShader: `
+          precision mediump float;
+          varying vec3 vColor;
+
+          void main() {
+            vec2 uv = gl_PointCoord - vec2(0.5);
+            float d = length(uv);
+            float alpha = (1.0 - smoothstep(0.18, 0.5, d)) * 0.9;
+            alpha += (1.0 - smoothstep(0.0, 0.18, d)) * 0.10;
+            if (alpha < 0.015) discard;
+            gl_FragColor = vec4(vColor, alpha);
+          }
+        `,
+        transparent: true,
+        depthWrite: false,
+        depthTest: true,
+      });
+
+      points = new THREE.Points(geometry, material);
+      points.frustumCulled = false;
+      points.renderOrder = 2;
+      fieldGroup.add(points);
+    }
+
+    function buildLineCloud() {
+      if (lineSegments) {
+        fieldGroup.remove(lineSegments);
+        lineGeometry.dispose();
+        lineMaterial.dispose();
+      }
+
+      const targets = getRunnerParticleTargets();
+      lineCount = MAX_MANIFOLD_LINES;
+      linePairs = new Uint32Array(lineCount * 2);
+      linePositions = new Float32Array(lineCount * 2 * 3);
+      lineAlphas = new Float32Array(lineCount);
+      lineCutoffs = new Float32Array(lineCount);
+      lineVisibility = new Float32Array(lineCount * 2);
+
+      for (let i = 0; i < lineCount; i++) {
+        const strandId = permuteHash(i, 130) % manifoldStrands.length;
+        const strand = manifoldStrands[strandId];
+        const cross = hash01(i, 131) < 0.18;
+        let a = permuteHash(i, 132) % Math.max(1, strand.length);
+        let source = strand[a] || manifoldBindings[permuteHash(i, 133) % targets.count];
+        let target = null;
+
+        if (cross) {
+          const otherStrand = manifoldStrands[(strandId + 1 + (permuteHash(i, 134) % 4)) % manifoldStrands.length];
+          if (otherStrand.length) {
+            const nearRank = Math.floor(source.rank * (otherStrand.length - 1));
+            target = otherStrand[Math.min(otherStrand.length - 1, Math.max(0, nearRank + (permuteHash(i, 135) % 5) - 2))];
+          }
+        }
+
+        if (!target && strand.length) {
+          const step = 1 + (permuteHash(i, 136) % 5);
+          const direction = hash01(i, 137) < 0.5 ? -1 : 1;
+          const b = Math.min(strand.length - 1, Math.max(0, a + step * direction));
+          target = strand[b] || strand[Math.max(0, Math.min(strand.length - 1, a - step * direction))];
+        }
+
+        if (!target || target.id === source.id) {
+          target = manifoldBindings[permuteHash(i, 138) % targets.count];
+        }
+
+        linePairs[i * 2] = source.id;
+        linePairs[i * 2 + 1] = target.id;
+        lineAlphas[i] = cross ? 0.30 : mix(0.28, 0.82, hash01(i, 139));
+        lineCutoffs[i] = Math.pow(hash01(i, 140), 1.18);
+      }
+
+      lineGeometry = new THREE.BufferGeometry();
+      lineGeometry.setAttribute("position", new THREE.BufferAttribute(linePositions, 3));
+      lineGeometry.setAttribute("lineAlpha", new THREE.BufferAttribute(lineVisibility, 1));
+      lineMaterial = new THREE.ShaderMaterial({
+        uniforms: {
+          uColor: { value: new THREE.Color(0x7cceff) },
+          uOpacity: { value: 0 },
+        },
+        vertexShader: `
+          attribute float lineAlpha;
+          varying float vLineAlpha;
+
+          void main() {
+            vLineAlpha = lineAlpha;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          precision mediump float;
+          uniform vec3 uColor;
+          uniform float uOpacity;
+          varying float vLineAlpha;
+
+          void main() {
+            float alpha = vLineAlpha * uOpacity;
+            if (alpha < 0.004) discard;
+            gl_FragColor = vec4(uColor, alpha);
+          }
+        `,
+        transparent: true,
+        depthWrite: false,
+        depthTest: false,
+      });
+      lineSegments = new THREE.LineSegments(lineGeometry, lineMaterial);
+      lineSegments.frustumCulled = false;
+      lineSegments.renderOrder = 4;
+      fieldGroup.add(lineSegments);
+    }
+
+    function rebuildAll() {
+      if (points) {
+        fieldGroup.remove(points);
+        geometry.dispose();
+        material.dispose();
+      }
+
+      buildFlowFeatures();
+      buildChenBindings();
+      buildManifoldBindings();
+      buildPointCloud();
+      buildLineCloud();
+      frameIndex = 0;
+      debugCount.textContent = getRunnerParticleTargets().count.toString();
+    }
+
+    function updateLines(time, segment, speed, effectiveDensity) {
+      if (!lineSegments || lineCount <= 0) return;
+
+      const density = clamp01(effectiveDensity);
+      const linePresence = smoothstepRange(0.35, 1.0, density);
+      const chenPresence = mix(0.62, 0.24, segment.manifoldP) * segment.chenTraceP;
+      const networkPresence = smoothstepRange(0.18, 0.92, segment.p);
+      const baseLineAlpha = segment.lineP * mix(0.028, 0.058, networkPresence) * (0.72 + chenPresence * 0.28);
+      lineMaterial.uniforms.uOpacity.value = baseLineAlpha * mix(0.92, 2.85, linePresence);
+      lineMaterial.uniforms.uColor.value.copy(lineColorCurrent).lerpColors(lineColorLow, lineColorPeak, linePresence);
+      if (lineMaterial.uniforms.uOpacity.value <= 0.002) return;
+
+      const networkP = segment.networkP;
+      const orbitLength = 0.00004 + segment.lineStretchP * 0.00020 + segment.unfoldP * 0.00018;
+      const feather = 0.055;
+
+      for (let i = 0; i < lineCount; i++) {
+        const phase = (i * 0.61803398875 + time * speed * 0.004 + hash01(i, 90) * 0.04) % 1;
+        const radialScale = mix(0.72, 1.04, hash01(i, 91));
+        const k = i * 6;
+        sampleChenAtPhase(phase, chenPosition, radialScale);
+        sampleChenAtPhase(phase + orbitLength + hash01(i, 92) * orbitLength * 0.8, orbitAheadPosition, radialScale);
+
+        const a = linePairs[i * 2] * 3;
+        const b = linePairs[i * 2 + 1] * 3;
+        const alpha = lineAlphas[i];
+        const visibility = smoothstepRange(lineCutoffs[i] - feather, lineCutoffs[i] + feather, density);
+        const vertexAlpha = visibility * alpha * mix(0.86, 1.24, linePresence);
+        const localNetworkP = clamp01(networkP * alpha + segment.manifoldP * (1 - alpha) * 0.55);
+
+        linePositions[k] = mix(chenPosition.x, positions[a], localNetworkP);
+        linePositions[k + 1] = mix(chenPosition.y, positions[a + 1], localNetworkP);
+        linePositions[k + 2] = mix(chenPosition.z, positions[a + 2], localNetworkP);
+        linePositions[k + 3] = mix(orbitAheadPosition.x, positions[b], localNetworkP);
+        linePositions[k + 4] = mix(orbitAheadPosition.y, positions[b + 1], localNetworkP);
+        linePositions[k + 5] = mix(orbitAheadPosition.z, positions[b + 2], localNetworkP);
+        lineVisibility[i * 2] = vertexAlpha;
+        lineVisibility[i * 2 + 1] = vertexAlpha;
+      }
+
+      lineGeometry.attributes.position.needsUpdate = true;
+      lineGeometry.attributes.lineAlpha.needsUpdate = true;
+    }
+
+    function updateCamera(progress) {
+      const vFov = THREE.MathUtils.degToRad(camera.fov);
+      const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+      const chenDistanceForWidth = 1.78 / (2 * Math.tan(hFov / 2));
+      const chenDistanceForHeight = 1.38 / (2 * Math.tan(vFov / 2));
+      const chenDistance = Math.max(1.58, chenDistanceForWidth, chenDistanceForHeight) * 0.96;
+      const manifoldDistanceForWidth = 4.02 / (2 * Math.tan(hFov / 2));
+      const manifoldDistanceForHeight = 1.82 / (2 * Math.tan(vFov / 2));
+      const manifoldDistance = Math.max(1.82, manifoldDistanceForWidth, manifoldDistanceForHeight) * 0.96;
+      const push = smootherstep(progress);
+      const distance = mix(chenDistance, manifoldDistance, push);
+      const targetY = mix(0.02, 0.005, push);
+
+      camera.position.set(distance, 0.05, 0);
+      camera.lookAt(0, targetY, 0);
+      viewHalfHeight = Math.tan(vFov / 2) * distance;
+      viewHalfWidth = viewHalfHeight * camera.aspect;
+      mouse.worldZ = mouse.ndcX * viewHalfWidth;
+      mouse.worldY = targetY + mouse.ndcY * viewHalfHeight;
+    }
+
+    function applyMouseAttraction(k, strength) {
+      if (!mouse.active || strength <= 0) return;
+
+      const dx = -positions[k] * 0.28;
+      const dy = mouse.worldY - positions[k + 1];
+      const dz = mouse.worldZ - positions[k + 2];
+      const r2 = dx * dx + dy * dy + dz * dz;
+      const pull = strength * Math.exp(-r2 / 0.11);
+
+      positions[k] += dx * pull;
+      positions[k + 1] += dy * pull;
+      positions[k + 2] += dz * pull;
+    }
+
+    function currentTime(now) {
+      if (paused) return pausedAt;
+      return (now - startedAt) / 1000;
+    }
+
+    function render(now) {
+      requestAnimationFrame(render);
+      if (!points || loadingQuality) return;
+
+      const elapsed = currentTime(now);
+      const dt = Math.max(1, now - previousFrameTime);
+      previousFrameTime = now;
+      fps = mix(fps, Math.min(120, 1000 / dt), 0.08);
+
+      updateScrollTarget();
+      const speed = Number(controlSpeed.value);
+      autoplayProgress = autoplayValue(elapsed, speed);
+
+      if (inputMode === "autoplay") {
+        writeTargetProgress("autoplay", autoplayProgress);
+      } else if (inputMode === "scroll") {
+        writeTargetProgress("scroll", scrollProgress);
+      } else {
+        writeTargetProgress("slider", rawSliderValue);
+      }
+
+      lastDisplayedProgress = displayedProgress;
+      displayedProgress += (targetProgress - displayedProgress) * PROGRESS_SMOOTHING;
+      if (Math.abs(displayedProgress - targetProgress) < 0.0004) displayedProgress = targetProgress;
+
+      if (displayedProgress < lastDisplayedProgress - 0.08 && targetProgress >= lastDisplayedProgress - 0.01) {
+        console.warn(`[progress] displayedProgress stepped backward in ${inputMode} mode`);
+      }
+
+      if (inputMode === "slider") {
+        controlProgress.value = rawSliderValue.toFixed(3);
+      } else {
+        controlProgress.value = displayedProgress.toFixed(3);
+      }
+
+      const segment = segmentMorphProgress(displayedProgress);
+      const targets = getRunnerParticleTargets();
+      const updateStyle = frameIndex % 2 === 0 || segment.blend < 0.002 || segment.blend > 0.998;
+      const mouseStrength = 0.014 + segment.blend * 0.008;
+      const depthScale = Number(controlDepthScale.value);
+      const parallaxSpeed = Number(controlParallaxSpeed.value);
+      frameIndex += 1;
+
+      updateCamera(segment.blend);
+
+      for (let i = 0; i < targets.count; i++) {
+        const feature = flowFeatures[i];
+        const binding = chenBindings[i];
+        const manifold = manifoldBindings[i];
+        const k = i * 3;
+
+        const localBlend = segment.manifoldP <= 0
+          ? 0
+          : clamp01((segment.manifoldP - feature.delay * 0.10) / (1 - feature.delay * 0.10));
+        const chen = computeChenPosition(binding, feature, elapsed, speed, chenPosition);
+        const unfolded = computeUnfoldedChenPosition(binding, feature, chen, elapsed, speed, segment, flowPosition);
+        const manifoldPos = computeManifoldPosition(manifold, feature, elapsed, speed, depthScale, parallaxSpeed, streamPosition);
+        const bridgeX = mix(chen.x, unfolded.x, segment.unfoldP);
+        const bridgeY = mix(chen.y, unfolded.y, segment.unfoldP);
+        const bridgeZ = mix(chen.z, unfolded.z, segment.unfoldP);
+
+        positions[k] = mix(bridgeX, manifoldPos.x, localBlend);
+        positions[k + 1] = mix(bridgeY, manifoldPos.y, localBlend);
+        positions[k + 2] = mix(bridgeZ, manifoldPos.z, localBlend);
+        applyMouseAttraction(k, mouseStrength);
+
+        if (updateStyle) {
+          const c = i * 3;
+          const cadence = feature.footSpark ? 0.5 + 0.5 * fastSin01(elapsed * 0.62 + feature.phase / TAU) : 0;
+          feature.lastAmber = cadence * cadence * cadence;
+          const cw = chenWeights(feature, binding);
+          const mw = manifoldWeights(feature, manifold, elapsed);
+          const colorP = smoothstepRange(0.30, 0.84, displayedProgress);
+          setRgbFromWeights(
+            colors,
+            c,
+            mix(cw.w0, mw.w0, colorP),
+            mix(cw.w1, mw.w1, colorP),
+            mix(cw.w2, mw.w2, colorP),
+            mix(cw.w3, mw.w3, colorP)
+          );
+
+          sizes[i] = mix(feature.flowSize * mix(0.88, 1.18, hash01(i, 93)), manifold.size, localBlend);
+        }
+      }
+
+      geometry.attributes.position.needsUpdate = true;
+      if (updateStyle) {
+        geometry.attributes.particleColor.needsUpdate = true;
+        geometry.attributes.particleSize.needsUpdate = true;
+      }
+
+      const effectiveLineDensity = updateEffectiveLineDensity(elapsed, displayedProgress);
+      updateLines(elapsed, segment, speed, effectiveLineDensity);
+      const actualRotation = Number(controlRotationSpeed.value) * elapsed;
+      const parallaxRotation = segment.blend * (parallaxSpeed * elapsed * 0.055 + 0.055 * fastSin01(elapsed * 0.026));
+      fieldGroup.rotation.y = 0.54 + actualRotation * 0.12 + parallaxRotation;
+      fieldGroup.rotation.x = 0.07 + 0.035 * fastSin01(elapsed * 0.035) + segment.blend * (0.035 * fastCos01(elapsed * 0.021) - 0.018);
+      renderer.render(scene, camera);
+
+      if (now - previousDebugTime > 120) {
+        previousDebugTime = now;
+        debugFps.textContent = Math.round(fps).toString();
+        debugCount.textContent = targets.count.toString();
+        debugMorph.textContent = displayedProgress.toFixed(3);
+        debugMode.textContent = inputMode;
+        debugTarget.textContent = targetProgress.toFixed(3);
+        debugDisplayed.textContent = displayedProgress.toFixed(3);
+        debugSlider.textContent = rawSliderValue.toFixed(3);
+        debugAutoplay.textContent = autoplayProgress.toFixed(3);
+        debugScroll.textContent = scrollProgress.toFixed(3);
+      }
+    }
+
+    controlProgress.addEventListener("input", () => {
+      setInputMode("slider");
+      syncSliderTo(Number(controlProgress.value));
+      writeTargetProgress("slider", rawSliderValue);
+    });
+
+    controlAutoplay.addEventListener("click", () => {
+      if (inputMode === "autoplay") {
+        setInputMode("slider");
+        syncSliderTo(displayedProgress);
+        writeTargetProgress("slider", rawSliderValue);
+      } else {
+        setInputMode("autoplay");
+        writeTargetProgress("autoplay", autoplayProgress);
+      }
+    });
+
+    controlPause.addEventListener("click", () => {
+      paused = !paused;
+      controlPause.textContent = paused ? "Play" : "Pause";
+      if (paused) {
+        pausedAt = (performance.now() - startedAt) / 1000;
+      } else {
+        startedAt = performance.now() - pausedAt * 1000;
+      }
+    });
+
+    controlQuality.addEventListener("change", () => {
+      loadingQuality = true;
+      setRunnerQuality(Number(controlQuality.value));
+      rebuildAll();
+      loadingQuality = false;
+    });
+
+    controlLineDensity.addEventListener("input", () => {
+      if (!lineDensityAutoActive) {
+        manualLineDensity = Number(controlLineDensity.value);
+      }
+    });
+
+    controlBreathingPulse.addEventListener("change", () => {
+      if (!controlBreathingPulse.checked && lineDensityAutoActive) {
+        lineDensityAutoActive = false;
+        controlLineDensity.value = manualLineDensity.toFixed(3);
+      }
+    });
+
+    controlScrollTest.addEventListener("change", () => {
+      if (controlScrollTest.checked) {
+        setInputMode("scroll");
+        updateScrollTarget();
+        writeTargetProgress("scroll", scrollProgress);
+      } else {
+        setInputMode("slider");
+        syncSliderTo(displayedProgress);
+        writeTargetProgress("slider", rawSliderValue);
+      }
+    });
+
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (material) {
+        material.uniforms.uDpr.value = Math.min(window.devicePixelRatio || 1, 2);
+        material.uniforms.uViewportHeight.value = window.innerHeight;
+      }
+      updateScrollTarget();
+    });
+
+    window.addEventListener("pointermove", (event) => {
+      mouse.active = true;
+      mouse.ndcX = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.ndcY = -(event.clientY / window.innerHeight) * 2 + 1;
+    });
+
+    window.addEventListener("pointerleave", () => {
+      mouse.active = false;
+    });
+
+    const initialProgressRaw = new URLSearchParams(window.location.search).get("progress");
+    const initialProgressParam = Number(initialProgressRaw);
+    if (initialProgressRaw !== null && Number.isFinite(initialProgressParam)) {
+      setInputMode("slider");
+      syncSliderTo(initialProgressParam);
+      writeTargetProgress("slider", rawSliderValue);
+      displayedProgress = targetProgress;
+      lastDisplayedProgress = targetProgress;
+    }
+
+    buildChenLeeTrajectory();
+    await loadRunnerAssets({ quality: DEFAULT_QUALITY });
+    rebuildAll();
+    updateScrollTarget();
+    startedAt = performance.now();
+    previousFrameTime = startedAt;
+    requestAnimationFrame(render);
+  </script>
+</body>
+</html>

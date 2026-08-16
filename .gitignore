@@ -1,0 +1,29 @@
+node_modules/
+dist/
+coverage/
+
+.env
+.env.*
+!.env.example
+
+.tmp-*
+*.log
+npm-debug.log*
+
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Third-party or locally supplied 3D assets are intentionally not archived.
+assets/*.fbx
+assets/*.glb
+assets/*.gltf
+assets/*.obj
+assets/*.blend
+
+# Keep selected evidence images under screenshots/ only.
+/*.png
+/*.jpg
+/*.jpeg
+/*.webp
