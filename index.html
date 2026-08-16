@@ -1,0 +1,3119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Scroll-Driven Particle Portfolio Prototype</title>
+  <script>
+    if (window.location.protocol === "file:") {
+      window.location.replace("http://127.0.0.1:5177/");
+    }
+  </script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "/node_modules/three/build/three.module.js",
+        "three/addons/": "/node_modules/three/examples/jsm/"
+      }
+    }
+  </script>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+      --assembly-scroll-height: 1800vh;
+      --bg-base: rgb(6, 10, 20);
+      --gradient-inner: rgba(15, 26, 48, 0.92);
+      --gradient-middle: rgba(8, 16, 28, 0.46);
+      --gradient-outer: rgba(6, 10, 20, 0.92);
+      --gradient-linear-from: rgba(14, 18, 30, 0.16);
+      --gradient-linear-middle: rgba(6, 10, 20, 0.04);
+      --gradient-linear-to: rgba(6, 10, 20, 0);
+      --light-x: 60%;
+      --light-y: 30%;
+      --warm-x: 14%;
+      --warm-y: 86%;
+      --warm-fill: rgba(246, 161, 58, 0.055);
+      --fog-color: rgba(10, 20, 40, 1);
+      --fog-density: 0.03;
+      --grain-opacity: 0.03;
+      --vignette-opacity: 0.40;
+      --star-opacity: 0;
+      --heading-color: rgb(212, 234, 255);
+      --body-color: rgb(176, 196, 224);
+      --caption-color: rgb(106, 122, 144);
+      --scene-core: rgb(126, 207, 255);
+    }
+
+    html,
+    body {
+      width: 100%;
+      margin: 0;
+      background: #05070d;
+    }
+
+    html {
+      min-height: 100%;
+    }
+
+    body {
+      min-height: 100%;
+      overflow-x: hidden;
+      overflow-y: auto;
+      scrollbar-color: rgba(87, 215, 255, 0.35) #05070d;
+    }
+
+    .scroll-lab {
+      height: var(--assembly-scroll-height);
+      background: transparent;
+    }
+
+    .sticky-stage {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: var(--bg-base);
+      z-index: 0;
+    }
+
+    .cinematic-bg,
+    .cinematic-bg > div {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .cinematic-bg {
+      z-index: 0;
+      background: var(--bg-base);
+      transition: background-color 400ms ease;
+    }
+
+    .bg-gradient {
+      background:
+        radial-gradient(circle at var(--light-x) var(--light-y), var(--gradient-inner) 0%, var(--gradient-middle) 36%, rgba(0, 0, 0, 0) 72%),
+        linear-gradient(38deg, var(--gradient-linear-from) 0%, var(--gradient-linear-middle) 48%, var(--gradient-linear-to) 100%),
+        radial-gradient(circle at var(--warm-x) var(--warm-y), var(--warm-fill) 0%, rgba(0, 0, 0, 0) 42%);
+      opacity: 1;
+    }
+
+    .bg-fog {
+      background:
+        radial-gradient(ellipse at 45% 56%, var(--fog-color) 0%, rgba(0, 0, 0, 0) 62%),
+        linear-gradient(90deg, rgba(0, 0, 0, 0), var(--fog-color), rgba(0, 0, 0, 0));
+      mix-blend-mode: screen;
+      opacity: var(--fog-density);
+      transform: translate3d(-2%, 0, 0);
+      animation: fogDrift 22s ease-in-out infinite alternate;
+    }
+
+    .bg-grain {
+      background-image:
+        radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.42) 0 0.6px, transparent 0.8px),
+        radial-gradient(circle at 70% 60%, rgba(255, 255, 255, 0.28) 0 0.55px, transparent 0.75px);
+      background-size: 3px 3px, 5px 5px;
+      opacity: var(--grain-opacity);
+      mix-blend-mode: overlay;
+    }
+
+    .bg-vignette {
+      background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, var(--vignette-opacity)) 100%);
+    }
+
+    .bg-stars {
+      opacity: var(--star-opacity);
+      background:
+        radial-gradient(circle at 18% 9%, rgba(232, 160, 191, 0.72) 0 0.8px, transparent 1px),
+        radial-gradient(circle at 46% 7%, rgba(168, 184, 208, 0.62) 0 0.7px, transparent 1px),
+        radial-gradient(circle at 63% 11%, rgba(232, 160, 191, 0.52) 0 0.7px, transparent 1px),
+        radial-gradient(circle at 81% 8%, rgba(168, 184, 208, 0.54) 0 0.65px, transparent 1px);
+    }
+
+    @keyframes fogDrift {
+      from { transform: translate3d(-2%, -0.5%, 0) scale(1.02); }
+      to { transform: translate3d(2%, 0.5%, 0) scale(1.05); }
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      background: transparent;
+      position: relative;
+      z-index: 1;
+    }
+
+    .panel {
+      position: fixed;
+      left: 18px;
+      bottom: 18px;
+      width: min(380px, calc(100vw - 36px));
+      max-height: 42vh;
+      overflow-y: auto;
+      display: grid;
+      gap: 11px;
+      padding: 14px;
+      border: 1px solid rgba(220, 232, 242, 0.16);
+      border-radius: 8px;
+      background: rgba(5, 7, 13, 0.76);
+      backdrop-filter: blur(12px);
+      box-sizing: border-box;
+      color: rgba(220, 232, 242, 0.78);
+      font-size: 12px;
+      letter-spacing: 0;
+      user-select: none;
+      z-index: 2;
+      opacity: 1;
+      transform: translateY(0);
+      transition: opacity 300ms ease, transform 300ms ease;
+    }
+
+    .panel.is-hidden {
+      opacity: 0;
+      transform: translateY(10px);
+      pointer-events: none;
+    }
+
+    .nav {
+      position: fixed;
+      top: 0;
+      left: clamp(18px, 3.4vw, 56px);
+      right: clamp(18px, 3.4vw, 56px);
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      backdrop-filter: none;
+      z-index: 4;
+    }
+
+    .nav-brand {
+      color: var(--caption-color);
+      font-size: 14px;
+      letter-spacing: 0;
+      opacity: 0.76;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: clamp(16px, 2.4vw, 30px);
+    }
+
+    .nav button {
+      position: relative;
+      height: 32px;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      color: var(--body-color);
+      opacity: 0.62;
+      font-size: 14px;
+      line-height: 1;
+      transition: color 260ms ease, opacity 260ms ease;
+    }
+
+    .nav button::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 2px;
+      height: 2px;
+      background: var(--scene-core);
+      opacity: 0;
+      transform: scaleX(0.35);
+      transform-origin: center;
+      transition: opacity 260ms ease, transform 260ms ease, background-color 420ms ease;
+    }
+
+    .nav button:hover {
+      color: var(--heading-color);
+      opacity: 0.86;
+    }
+
+    .nav button.is-active {
+      color: var(--heading-color);
+      opacity: 0.92;
+    }
+
+    .nav button.is-active::after,
+    .nav button.controls-toggle.is-active::after {
+      opacity: 1;
+      transform: scaleX(1);
+    }
+
+    .nav button.controls-toggle {
+      opacity: 0.44;
+    }
+
+    .menu-toggle {
+      display: none;
+    }
+
+    .copy-layer {
+      pointer-events: none;
+      position: fixed;
+      inset: 0;
+      z-index: 3;
+    }
+
+    .copy-card {
+      position: absolute;
+      max-width: min(430px, calc(100vw - 44px));
+      color: rgba(220, 232, 242, 0.86);
+      opacity: 0;
+      transform: translateY(12px);
+      filter: blur(8px);
+      pointer-events: none;
+      will-change: opacity, transform, filter;
+    }
+
+    .copy-card.is-visible {
+      opacity: 1;
+      transform: translateY(0);
+      filter: blur(0);
+    }
+
+    .copy-card.hero {
+      left: clamp(22px, 6vw, 96px);
+      top: clamp(76px, 14vh, 130px);
+      max-width: min(560px, calc(100vw - 44px));
+    }
+
+    .copy-card.flow {
+      right: clamp(22px, 7vw, 110px);
+      top: clamp(90px, 22vh, 210px);
+      text-align: right;
+    }
+
+    .copy-card.work {
+      right: clamp(22px, 8vw, 130px);
+      top: clamp(160px, 36vh, 330px);
+      text-align: right;
+      pointer-events: auto;
+    }
+
+    .copy-card.contact {
+      right: clamp(22px, 7vw, 110px);
+      bottom: clamp(70px, 16vh, 150px);
+      text-align: right;
+      pointer-events: auto;
+    }
+
+    .eyebrow {
+      margin: 0 0 12px;
+      color: var(--caption-color);
+      opacity: 0.38;
+      font-size: 13px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: 0;
+      text-transform: none;
+    }
+
+    h1,
+    h2 {
+      margin: 0;
+      color: var(--heading-color);
+      opacity: 0.88;
+      font-weight: 560;
+      letter-spacing: -0.02em;
+    }
+
+    h1 {
+      max-width: 620px;
+      font-size: clamp(3rem, 8vw, 4.5rem);
+      line-height: 1.1;
+    }
+
+    h2 {
+      font-size: clamp(2.3rem, 5.8vw, 4.3rem);
+      line-height: 1.1;
+    }
+
+    .copy-card p {
+      margin: 16px 0 0;
+      color: var(--body-color);
+      opacity: 0.66;
+      font-size: clamp(16px, 1.25vw, 18px);
+      line-height: 1.7;
+    }
+
+    .keywords {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .hero .keywords {
+      justify-content: flex-start;
+    }
+
+    .keywords span {
+      border: 0;
+      border-radius: 0;
+      padding: 0;
+      color: var(--body-color);
+      background: transparent;
+      opacity: 0.62;
+      font-size: 13px;
+    }
+
+    .keywords span:not(:last-child)::after {
+      content: "/";
+      margin-left: 8px;
+      color: var(--caption-color);
+      opacity: 0.55;
+    }
+
+    .link-row {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .link-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      min-width: 0;
+      height: auto;
+      padding: 0;
+      color: var(--heading-color);
+      border: 0;
+      background: transparent;
+      opacity: 0.76;
+      transition: color 260ms ease, opacity 260ms ease, transform 260ms ease;
+    }
+
+    .work .link-button::after {
+      content: "->";
+      margin-left: 7px;
+      transition: transform 260ms ease;
+    }
+
+    .work .link-button:hover::after {
+      transform: translateX(4px);
+    }
+
+    .contact .link-button {
+      color: var(--body-color);
+      border-bottom: 1px solid transparent;
+    }
+
+    .contact .link-button:hover {
+      border-bottom-color: var(--scene-core);
+    }
+
+    .link-button:hover {
+      opacity: 0.94;
+    }
+
+    @media (max-width: 760px) {
+      .nav {
+        left: 18px;
+        right: 18px;
+        height: 54px;
+      }
+
+      .menu-toggle {
+        display: inline-flex;
+        position: relative;
+        flex-direction: column;
+        justify-content: center;
+        gap: 5px;
+        width: 34px;
+        height: 34px;
+        border: 0;
+        background: transparent;
+        z-index: 6;
+      }
+
+      .menu-toggle span {
+        width: 22px;
+        height: 1px;
+        background: var(--heading-color);
+        opacity: 0.82;
+      }
+
+      .nav-links {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 28px;
+        background:
+          radial-gradient(circle at 50% 40%, rgba(87, 215, 255, 0.12), rgba(5, 7, 13, 0.94) 54%),
+          var(--bg-base);
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(-8px);
+        transition: opacity 260ms ease, transform 260ms ease;
+        z-index: 5;
+      }
+
+      .nav.is-menu-open .nav-links {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(0);
+      }
+
+      .nav button {
+        font-size: 24px;
+      }
+
+      .nav button.controls-toggle {
+        font-size: 15px;
+        opacity: 0.52;
+      }
+
+      .panel {
+        left: 14px;
+        right: 14px;
+        bottom: 14px;
+        width: auto;
+        max-height: 40vh;
+      }
+
+      .copy-card,
+      .copy-card.flow,
+      .copy-card.work,
+      .copy-card.contact {
+        left: 18px;
+        right: 18px;
+        text-align: left;
+      }
+
+      .copy-card.hero {
+        top: 92px;
+      }
+
+      .copy-card.flow,
+      .copy-card.work {
+        top: 118px;
+      }
+
+      .copy-card.contact {
+        bottom: 72px;
+      }
+
+      .keywords,
+      .hero .keywords,
+      .link-row {
+        justify-content: flex-start;
+      }
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 112px 1fr;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .debug-row,
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .debug-row {
+      grid-template-columns: 1fr auto;
+    }
+
+    input,
+    select,
+    button {
+      min-width: 0;
+      height: 32px;
+      border: 1px solid rgba(220, 232, 242, 0.2);
+      border-radius: 6px;
+      background: rgba(220, 232, 242, 0.06);
+      color: #dce8f2;
+      font: inherit;
+      box-sizing: border-box;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    input[type="range"] {
+      height: 20px;
+      accent-color: #57d7ff;
+    }
+
+    input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: #57d7ff;
+    }
+
+    select {
+      padding: 0 8px;
+    }
+
+    .debug-value {
+      color: #dce8f2;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+  </style>
+</head>
+<body>
+  <section id="scrollLab" class="scroll-lab">
+    <div id="stickyStage" class="sticky-stage">
+      <div class="cinematic-bg" aria-hidden="true">
+        <div class="bg-gradient"></div>
+        <div class="bg-fog"></div>
+        <div class="bg-stars"></div>
+        <div class="bg-grain"></div>
+        <div class="bg-vignette"></div>
+      </div>
+    </div>
+  </section>
+
+  <nav class="nav" aria-label="homepage assembly navigation">
+    <span class="nav-brand">insider</span>
+    <button id="mobileMenuToggle" class="menu-toggle" type="button" aria-label="Open navigation" aria-expanded="false">
+      <span></span>
+      <span></span>
+    </button>
+    <div id="navLinks" class="nav-links">
+      <button type="button" data-jump="0.00">run</button>
+      <button type="button" data-jump="0.24">flow</button>
+      <button type="button" data-jump="0.48">work</button>
+      <button type="button" data-jump="0.86">contact</button>
+      <button id="controlsToggle" class="controls-toggle" type="button" aria-pressed="false">controls</button>
+    </div>
+  </nav>
+
+  <div class="copy-layer" aria-label="homepage copy">
+    <section class="copy-card hero" data-copy="runner">
+      <p class="eyebrow">AI-native PM / developer</p>
+      <h1>Building sharp things with product sense and code.</h1>
+      <div class="keywords">
+        <span>AI-native</span>
+        <span>technical PM</span>
+        <span>frontend systems</span>
+      </div>
+    </section>
+    <section class="copy-card flow" data-copy="flow">
+      <p class="eyebrow">Skills</p>
+      <h2>AI workflow, product thinking, frontend, web3, systems.</h2>
+      <p>Small teams, fast prototypes, useful interfaces.</p>
+    </section>
+    <section class="copy-card work" data-copy="chen">
+      <p class="eyebrow">Work</p>
+      <h2>Projects as complex systems.</h2>
+      <div class="link-row">
+        <a class="link-button" href="#work-placeholder" data-jump-link="0.48">view work</a>
+      </div>
+    </section>
+    <section class="copy-card contact" data-copy="manifold">
+      <p class="eyebrow">Contact</p>
+      <h2>Let the next thread start here.</h2>
+      <div class="link-row">
+        <a class="link-button" href="mailto:hello@example.com">email</a>
+        <a class="link-button" href="#contact-placeholder">links</a>
+      </div>
+    </section>
+  </div>
+
+  <div class="panel is-hidden" aria-label="homepage assembly lab controls">
+    <div class="row">
+      <span>Progress</span>
+      <input id="progress" type="range" min="0" max="1" step="0.001" value="0" />
+    </div>
+    <div class="actions">
+      <button id="autoplay" type="button">Autoplay off</button>
+      <button id="pause" type="button">Pause</button>
+    </div>
+    <div class="row">
+      <span>Speed</span>
+      <input id="speed" type="range" min="0.15" max="2.2" step="0.01" value="0.72" />
+    </div>
+    <div class="row">
+      <span>Particles</span>
+      <select id="quality" aria-label="particle count">
+        <option value="8000">8000</option>
+        <option value="15000" selected>15000</option>
+        <option value="25000">25000</option>
+      </select>
+    </div>
+    <div class="row">
+      <span>Line density</span>
+      <input id="lineDensity" type="range" min="0" max="1" step="0.01" value="0.18" />
+    </div>
+    <label class="toggle-row">
+      <span>Breathing Pulse</span>
+      <input id="breathingPulse" type="checkbox" checked />
+    </label>
+    <div class="row">
+      <span>Depth scale</span>
+      <input id="depthScale" type="range" min="0.55" max="1.85" step="0.01" value="1.12" />
+    </div>
+    <div class="row">
+      <span>Rotation speed</span>
+      <input id="rotationSpeed" type="range" min="0" max="1.4" step="0.01" value="0.30" />
+    </div>
+    <div class="row">
+      <span>Parallax speed</span>
+      <input id="parallaxSpeed" type="range" min="0" max="1.2" step="0.01" value="0.22" />
+    </div>
+    <label class="toggle-row">
+      <span>Scroll progress test</span>
+      <input id="scrollTest" type="checkbox" />
+    </label>
+    <div class="debug-row">
+      <span>FPS</span>
+      <span id="debugFps" class="debug-value">0</span>
+    </div>
+    <div class="debug-row">
+      <span>particleCount</span>
+      <span id="debugCount" class="debug-value">15000</span>
+    </div>
+    <div class="debug-row">
+      <span>globalScrollProgress</span>
+      <span id="debugScroll" class="debug-value">0.000</span>
+    </div>
+    <div class="debug-row">
+      <span>scrollY</span>
+      <span id="debugScrollY" class="debug-value">0</span>
+    </div>
+    <div class="debug-row">
+      <span>maxScrollY</span>
+      <span id="debugMaxScrollY" class="debug-value">0</span>
+    </div>
+    <div class="debug-row">
+      <span>rawScrollProgress</span>
+      <span id="debugRawScroll" class="debug-value">0.000</span>
+    </div>
+    <div class="debug-row">
+      <span>displayedProgress</span>
+      <span id="debugDisplayed" class="debug-value">0.000</span>
+    </div>
+    <div class="debug-row">
+      <span>currentSegment</span>
+      <span id="debugScene" class="debug-value">Runner</span>
+    </div>
+    <div class="debug-row">
+      <span>localChapterProgress</span>
+      <span id="debugLocal" class="debug-value">0.000</span>
+    </div>
+    <div class="debug-row">
+      <span>currentSegmentStart</span>
+      <span id="debugSegmentStart" class="debug-value">0.000</span>
+    </div>
+    <div class="debug-row">
+      <span>currentSegmentEnd</span>
+      <span id="debugSegmentEnd" class="debug-value">0.170</span>
+    </div>
+    <div class="debug-row">
+      <span>currentSegmentType</span>
+      <span id="debugSegmentType" class="debug-value">steady</span>
+    </div>
+    <div class="debug-row">
+      <span>localSegmentProgress</span>
+      <span id="debugSegmentLocal" class="debug-value">0.000</span>
+    </div>
+    <div class="debug-row">
+      <span>flowToChenP</span>
+      <span id="debugFlowToChen" class="debug-value">0.000</span>
+    </div>
+    <div class="debug-row">
+      <span>chenTo20dP</span>
+      <span id="debugChenTo20d" class="debug-value">0.000</span>
+    </div>
+    <div class="debug-row">
+      <span>sceneStable</span>
+      <span id="debugStable" class="debug-value">true</span>
+    </div>
+    <div class="debug-row">
+      <span>timeInStable</span>
+      <span id="debugStableTime" class="debug-value">0.000s</span>
+    </div>
+    <div class="debug-row">
+      <span>isAtBottom</span>
+      <span id="debugAtBottom" class="debug-value">false</span>
+    </div>
+    <div class="debug-row">
+      <span>breathingActive</span>
+      <span id="debugBreathingActive" class="debug-value">false</span>
+    </div>
+    <div class="debug-row">
+      <span>lastWheelDeltaY</span>
+      <span id="debugWheelDelta" class="debug-value">0</span>
+    </div>
+    <div class="debug-row">
+      <span>lastScrollDirection</span>
+      <span id="debugScrollDirection" class="debug-value">none</span>
+    </div>
+    <div class="debug-row">
+      <span>isInTransitionSegment</span>
+      <span id="debugInTransition" class="debug-value">false</span>
+    </div>
+    <div class="debug-row">
+      <span>snapPending</span>
+      <span id="debugSnapPending" class="debug-value">false</span>
+    </div>
+    <div class="debug-row">
+      <span>isSnapping</span>
+      <span id="debugIsSnapping" class="debug-value">false</span>
+    </div>
+    <div class="debug-row">
+      <span>snapTargetProgress</span>
+      <span id="debugSnapTarget" class="debug-value">none</span>
+    </div>
+    <div class="debug-row">
+      <span>snapStartProgress</span>
+      <span id="debugSnapStart" class="debug-value">none</span>
+    </div>
+    <div class="debug-row">
+      <span>snapDuration</span>
+      <span id="debugSnapDuration" class="debug-value">0.000s</span>
+    </div>
+    <div class="debug-row">
+      <span>snapElapsed</span>
+      <span id="debugSnapElapsed" class="debug-value">0.000s</span>
+    </div>
+    <div class="debug-row">
+      <span>snapEaseT</span>
+      <span id="debugSnapEase" class="debug-value">0.000</span>
+    </div>
+    <div class="debug-row">
+      <span>snapCanceledByUser</span>
+      <span id="debugSnapCanceled" class="debug-value">false</span>
+    </div>
+    <div class="debug-row">
+      <span>timeSinceLastScroll</span>
+      <span id="debugTimeSinceScroll" class="debug-value">0.000s</span>
+    </div>
+    <div class="debug-row">
+      <span>snapReason</span>
+      <span id="debugSnapReason" class="debug-value">none</span>
+    </div>
+    <div class="debug-row">
+      <span>lockReason</span>
+      <span id="debugLockReason" class="debug-value">none</span>
+    </div>
+    <div class="debug-row">
+      <span>lineDensity</span>
+      <span id="debugLineDensity" class="debug-value">0.180</span>
+    </div>
+    <div class="debug-row">
+      <span>speed</span>
+      <span id="debugSpeed" class="debug-value">0.72</span>
+    </div>
+    <div class="debug-row">
+      <span>inputMode</span>
+      <span id="debugMode" class="debug-value">slider</span>
+    </div>
+    <div class="debug-row">
+      <span>targetProgress</span>
+      <span id="debugTarget" class="debug-value">0.000</span>
+    </div>
+    <div class="debug-row">
+      <span>rawSliderValue</span>
+      <span id="debugSlider" class="debug-value">0.000</span>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from "three";
+    import {
+      loadRunnerAssets,
+      updateRunnerParticles,
+      getRunnerParticleTargets,
+      getRunnerBounds,
+      setRunnerQuality,
+    } from "./runner-model.js";
+
+    if ("scrollRestoration" in history) {
+      history.scrollRestoration = "manual";
+    }
+    window.scrollTo(0, 0);
+
+    const TAU = Math.PI * 2;
+    const FLOW_WIDTH = 1.34;
+    const DEFAULT_QUALITY = 15000;
+    const CHEN_POINTS = 120000;
+    const CHEN_TRANSIENT = 8000;
+    const CHEN_DT = 0.0036;
+    const MAX_MANIFOLD_LINES = 1400;
+    const BREATH_CYCLE = 6.18;
+    const TEXT_REVEAL_DELAY = 0.618;
+    const TEXT_REVEAL_IN_TAU = 0.34;
+    const TEXT_REVEAL_OUT_TAU = 0.11;
+    const palette = {
+      baseWhiteBlue: [0.8627, 0.9098, 0.949],
+      activeCyan: [0.3412, 0.8431, 1],
+      amberCadence: [0.9647, 0.6314, 0.2275],
+      roseAccent: [0.8471, 0.4353, 0.6235],
+    };
+
+    const sceneLightSpec = {
+      runner: {
+        base: "#060a14",
+        inner: "#0f1a30",
+        middle: "#0b1426",
+        outer: "#060a14",
+        linearFrom: "#09101f",
+        linearMiddle: "#060a14",
+        linearTo: "#060a14",
+        fog: "#0a1428",
+        core: "#7ecfff",
+        heading: "#d4eaff",
+        body: "#b0c4e0",
+        caption: "#6a7a90",
+        lightX: 0.60,
+        lightY: 0.30,
+        fogDensity: 0.03,
+        grain: 0.03,
+        vignette: 0.40,
+        star: 0,
+        warm: 0.055,
+      },
+      flow: {
+        base: "#070f1a",
+        inner: "#0d2030",
+        middle: "#081520",
+        outer: "#04080f",
+        linearFrom: "#06101a",
+        linearMiddle: "#0a1f2d",
+        linearTo: "#04080f",
+        fog: "#0a1f2d",
+        core: "#7ecfff",
+        heading: "#e0f0ff",
+        body: "#a8c4d8",
+        caption: "#5a7a90",
+        lightX: 0.50,
+        lightY: 0.50,
+        fogDensity: 0.04,
+        grain: 0.04,
+        vignette: 0.35,
+        star: 0,
+        warm: 0.025,
+      },
+      chen: {
+        base: "#0f0805",
+        inner: "#2a1508",
+        middle: "#1a0f08",
+        outer: "#0a0604",
+        linearFrom: "#2a1508",
+        linearMiddle: "#1a0f08",
+        linearTo: "#0a0604",
+        fog: "#1a0f08",
+        core: "#ffb366",
+        heading: "#ffe8cc",
+        body: "#d4b898",
+        caption: "#8a7060",
+        lightX: 0.18,
+        lightY: 0.78,
+        fogDensity: 0.05,
+        grain: 0.05,
+        vignette: 0.45,
+        star: 0,
+        warm: 0.13,
+      },
+      manifold: {
+        base: "#0f080c",
+        inner: "#1a0f18",
+        middle: "#120a10",
+        outer: "#050408",
+        linearFrom: "#1a0f14",
+        linearMiddle: "#120a10",
+        linearTo: "#050408",
+        fog: "#140a10",
+        core: "#e8a0bf",
+        heading: "#ffe0f0",
+        body: "#d4b0c0",
+        caption: "#8a6078",
+        lightX: 0.50,
+        lightY: 0.65,
+        fogDensity: 0.035,
+        grain: 0.04,
+        vignette: 0.40,
+        star: 0.56,
+        warm: 0.02,
+      },
+    };
+
+    const WAVE_TABLE_SIZE = 4096;
+    const WAVE_TABLE_MASK = WAVE_TABLE_SIZE - 1;
+    const waveTable = new Float32Array(WAVE_TABLE_SIZE);
+    for (let i = 0; i < WAVE_TABLE_SIZE; i++) {
+      waveTable[i] = Math.sin((i / WAVE_TABLE_SIZE) * TAU);
+    }
+
+    const scrollLab = document.querySelector("#scrollLab");
+    const stickyStage = document.querySelector("#stickyStage");
+    const controlPanel = document.querySelector(".panel");
+    const controlsToggle = document.querySelector("#controlsToggle");
+    const nav = document.querySelector(".nav");
+    const navLinks = document.querySelector("#navLinks");
+    const mobileMenuToggle = document.querySelector("#mobileMenuToggle");
+    const controlProgress = document.querySelector("#progress");
+    const controlAutoplay = document.querySelector("#autoplay");
+    const controlPause = document.querySelector("#pause");
+    const controlSpeed = document.querySelector("#speed");
+    const controlQuality = document.querySelector("#quality");
+    const controlLineDensity = document.querySelector("#lineDensity");
+    const controlBreathingPulse = document.querySelector("#breathingPulse");
+    const controlDepthScale = document.querySelector("#depthScale");
+    const controlRotationSpeed = document.querySelector("#rotationSpeed");
+    const controlParallaxSpeed = document.querySelector("#parallaxSpeed");
+    const controlScrollTest = document.querySelector("#scrollTest");
+    const debugFps = document.querySelector("#debugFps");
+    const debugCount = document.querySelector("#debugCount");
+    const debugScene = document.querySelector("#debugScene");
+    const debugLocal = document.querySelector("#debugLocal");
+    const debugSegmentStart = document.querySelector("#debugSegmentStart");
+    const debugSegmentEnd = document.querySelector("#debugSegmentEnd");
+    const debugSegmentType = document.querySelector("#debugSegmentType");
+    const debugSegmentLocal = document.querySelector("#debugSegmentLocal");
+    const debugFlowToChen = document.querySelector("#debugFlowToChen");
+    const debugChenTo20d = document.querySelector("#debugChenTo20d");
+    const debugScrollY = document.querySelector("#debugScrollY");
+    const debugMaxScrollY = document.querySelector("#debugMaxScrollY");
+    const debugRawScroll = document.querySelector("#debugRawScroll");
+    const debugStable = document.querySelector("#debugStable");
+    const debugStableTime = document.querySelector("#debugStableTime");
+    const debugAtBottom = document.querySelector("#debugAtBottom");
+    const debugBreathingActive = document.querySelector("#debugBreathingActive");
+    const debugWheelDelta = document.querySelector("#debugWheelDelta");
+    const debugScrollDirection = document.querySelector("#debugScrollDirection");
+    const debugInTransition = document.querySelector("#debugInTransition");
+    const debugSnapPending = document.querySelector("#debugSnapPending");
+    const debugIsSnapping = document.querySelector("#debugIsSnapping");
+    const debugSnapTarget = document.querySelector("#debugSnapTarget");
+    const debugSnapStart = document.querySelector("#debugSnapStart");
+    const debugSnapDuration = document.querySelector("#debugSnapDuration");
+    const debugSnapElapsed = document.querySelector("#debugSnapElapsed");
+    const debugSnapEase = document.querySelector("#debugSnapEase");
+    const debugSnapCanceled = document.querySelector("#debugSnapCanceled");
+    const debugTimeSinceScroll = document.querySelector("#debugTimeSinceScroll");
+    const debugSnapReason = document.querySelector("#debugSnapReason");
+    const debugLockReason = document.querySelector("#debugLockReason");
+    const debugLineDensity = document.querySelector("#debugLineDensity");
+    const debugSpeed = document.querySelector("#debugSpeed");
+    const debugMode = document.querySelector("#debugMode");
+    const debugTarget = document.querySelector("#debugTarget");
+    const debugDisplayed = document.querySelector("#debugDisplayed");
+    const debugSlider = document.querySelector("#debugSlider");
+    const debugScroll = document.querySelector("#debugScroll");
+    const navButtons = Array.from(document.querySelectorAll("[data-jump]"));
+    const copyCards = Array.from(document.querySelectorAll("[data-copy]"));
+    const jumpLinks = Array.from(document.querySelectorAll("[data-jump-link]"));
+    const copyRevealStates = copyCards.map((card) => ({
+      key: card.dataset.copy,
+      card,
+      sceneActive: false,
+      sceneStable: false,
+      stableStartTime: null,
+      textRevealProgress: 0,
+    }));
+
+    controlProgress.value = "0";
+    controlAutoplay.textContent = "Autoplay off";
+    controlPause.textContent = "Pause";
+    controlSpeed.value = "0.72";
+    controlQuality.value = String(DEFAULT_QUALITY);
+    controlLineDensity.value = "0.18";
+    controlBreathingPulse.checked = true;
+    controlDepthScale.value = "1.12";
+    controlRotationSpeed.value = "0.30";
+    controlParallaxSpeed.value = "0.22";
+    controlScrollTest.checked = true;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x05070d, 0);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    stickyStage.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = null;
+
+    const fieldGroup = new THREE.Group();
+    scene.add(fieldGroup);
+
+    const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.01, 100);
+    camera.position.set(2.8, 0.04, 0);
+    camera.lookAt(0, 0, 0);
+
+    let geometry;
+    let material;
+    let points;
+    let lineGeometry;
+    let lineMaterial;
+    let lineSegments;
+    let positions = new Float32Array(0);
+    let colors = new Float32Array(0);
+    let sizes = new Float32Array(0);
+    let linePositions = new Float32Array(0);
+    let lineAlphas = new Float32Array(0);
+    let lineCutoffs = new Float32Array(0);
+    let lineVisibility = new Float32Array(0);
+    let flowFeatures = [];
+    let chenBindings = [];
+    let manifoldBindings = [];
+    let manifoldStrands = [];
+    let linePairs = new Uint32Array(0);
+    let chenPoints = new Float32Array(0);
+    let chenPointBuckets = null;
+    let startedAt = performance.now();
+    let pausedAt = 0;
+    let paused = false;
+    let autoplay = false;
+    let displayedProgress = 0;
+    let targetProgress = 0;
+    let rawScrollProgress = 0;
+    let inputMode = "scroll";
+    let rawSliderValue = 0;
+    let autoplayProgress = 0;
+    let scrollProgress = 0;
+    let lastProgressWriter = "scroll";
+    let lastDisplayedProgress = 0;
+    let controlsVisible = false;
+    let fps = 60;
+    let previousFrameTime = performance.now();
+    let previousDebugTime = 0;
+    let frameIndex = 0;
+    let lineCount = 0;
+    let manualLineDensity = Number(controlLineDensity.value);
+    let lineDensityAutoActive = false;
+    let breathingActive = false;
+    let steadyStartTime = 0;
+    let loadingQuality = false;
+    let viewHalfWidth = 1;
+    let viewHalfHeight = 1;
+    let currentScrollY = 0;
+    let maxScrollY = 1;
+    let isAtBottom = false;
+    let lastWheelDeltaY = 0;
+    let lastScrollDirection = "none";
+    let previousScrollY = window.scrollY || 0;
+    let lockReason = "none";
+    let lastUserScrollTime = performance.now() / 1000;
+    let timeSinceLastScroll = 0;
+    let isInTransitionSegment = false;
+    let snapPending = false;
+    let isSnapping = false;
+    let snapTargetProgress = null;
+    let snapReason = "none";
+    let snapStartedAt = 0;
+    let snapStartY = 0;
+    let snapTargetY = 0;
+    let snapStartProgress = null;
+    let snapDuration = 0;
+    let snapElapsed = 0;
+    let snapEaseT = 0;
+    let snapCanceledByUser = false;
+    let snapCooldownUntil = 0;
+    let snapSuppressUntil = 0;
+    const PROGRESS_SMOOTHING = 0.075;
+    const SNAP_DEBOUNCE = 0.16;
+    const SNAP_COOLDOWN = 0.30;
+
+    const flowPosition = new THREE.Vector3();
+    const chenPosition = new THREE.Vector3();
+    const streamPosition = new THREE.Vector3();
+    const orbitAheadPosition = new THREE.Vector3();
+    const tangentPosition = new THREE.Vector3();
+    const flowStyle = { w0: 0, w1: 0, w2: 0, w3: 0 };
+    const chenStyle = { w0: 0, w1: 0, w2: 0, w3: 0 };
+    const manifoldStyle = { w0: 0, w1: 0, w2: 0, w3: 0 };
+    const lineColorLow = new THREE.Color(0x173247);
+    const lineColorPeak = new THREE.Color(0xbfefff);
+    const lineColorCurrent = new THREE.Color(0x173247);
+    const mouse = {
+      active: false,
+      ndcX: 0,
+      ndcY: 0,
+      worldY: 0,
+      worldZ: 0,
+    };
+
+    function clamp01(value) {
+      return Math.min(1, Math.max(0, value));
+    }
+
+    function smootherstep(value) {
+      const t = clamp01(value);
+      return t * t * t * (t * (t * 6 - 15) + 10);
+    }
+
+    function smoothstepRange(min, max, value) {
+      const t = mapRange(value, min, max);
+      return t * t * (3 - 2 * t);
+    }
+
+    function mapRange(value, min, max) {
+      return clamp01((value - min) / (max - min));
+    }
+
+    function hash01(id, salt) {
+      const x = Math.sin((id + 1) * 127.1 + salt * 311.7) * 43758.5453123;
+      return x - Math.floor(x);
+    }
+
+    function mix(a, b, t) {
+      return a + (b - a) * t;
+    }
+
+    function hexToRgb(hex) {
+      const clean = hex.replace("#", "");
+      const value = Number.parseInt(clean, 16);
+      return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
+    }
+
+    function rgbString(color) {
+      return `rgb(${Math.round(color[0])}, ${Math.round(color[1])}, ${Math.round(color[2])})`;
+    }
+
+    function rgbaString(color, alpha) {
+      return `rgba(${Math.round(color[0])}, ${Math.round(color[1])}, ${Math.round(color[2])}, ${alpha.toFixed(3)})`;
+    }
+
+    function normalizedLight(spec) {
+      return {
+        base: hexToRgb(spec.base),
+        inner: hexToRgb(spec.inner),
+        middle: hexToRgb(spec.middle),
+        outer: hexToRgb(spec.outer),
+        linearFrom: hexToRgb(spec.linearFrom),
+        linearMiddle: hexToRgb(spec.linearMiddle),
+        linearTo: hexToRgb(spec.linearTo),
+        fog: hexToRgb(spec.fog),
+        core: hexToRgb(spec.core),
+        heading: hexToRgb(spec.heading),
+        body: hexToRgb(spec.body),
+        caption: hexToRgb(spec.caption),
+        lightX: spec.lightX,
+        lightY: spec.lightY,
+        fogDensity: spec.fogDensity,
+        grain: spec.grain,
+        vignette: spec.vignette,
+        star: spec.star,
+        warm: spec.warm,
+      };
+    }
+
+    function cloneLight(light) {
+      return {
+        base: [...light.base],
+        inner: [...light.inner],
+        middle: [...light.middle],
+        outer: [...light.outer],
+        linearFrom: [...light.linearFrom],
+        linearMiddle: [...light.linearMiddle],
+        linearTo: [...light.linearTo],
+        fog: [...light.fog],
+        core: [...light.core],
+        heading: [...light.heading],
+        body: [...light.body],
+        caption: [...light.caption],
+        lightX: light.lightX,
+        lightY: light.lightY,
+        fogDensity: light.fogDensity,
+        grain: light.grain,
+        vignette: light.vignette,
+        star: light.star,
+        warm: light.warm,
+      };
+    }
+
+    function mixColor(target, a, b, t) {
+      target[0] = mix(a[0], b[0], t);
+      target[1] = mix(a[1], b[1], t);
+      target[2] = mix(a[2], b[2], t);
+      return target;
+    }
+
+    function blendLights(a, b, t) {
+      return {
+        base: mixColor([0, 0, 0], a.base, b.base, t),
+        inner: mixColor([0, 0, 0], a.inner, b.inner, t),
+        middle: mixColor([0, 0, 0], a.middle, b.middle, t),
+        outer: mixColor([0, 0, 0], a.outer, b.outer, t),
+        linearFrom: mixColor([0, 0, 0], a.linearFrom, b.linearFrom, t),
+        linearMiddle: mixColor([0, 0, 0], a.linearMiddle, b.linearMiddle, t),
+        linearTo: mixColor([0, 0, 0], a.linearTo, b.linearTo, t),
+        fog: mixColor([0, 0, 0], a.fog, b.fog, t),
+        core: mixColor([0, 0, 0], a.core, b.core, t),
+        heading: mixColor([0, 0, 0], a.heading, b.heading, t),
+        body: mixColor([0, 0, 0], a.body, b.body, t),
+        caption: mixColor([0, 0, 0], a.caption, b.caption, t),
+        lightX: mix(a.lightX, b.lightX, t),
+        lightY: mix(a.lightY, b.lightY, t),
+        fogDensity: mix(a.fogDensity, b.fogDensity, t),
+        grain: mix(a.grain, b.grain, t),
+        vignette: mix(a.vignette, b.vignette, t),
+        star: mix(a.star, b.star, t),
+        warm: mix(a.warm, b.warm, t),
+      };
+    }
+
+    const sceneLights = {
+      runner: normalizedLight(sceneLightSpec.runner),
+      flow: normalizedLight(sceneLightSpec.flow),
+      chen: normalizedLight(sceneLightSpec.chen),
+      manifold: normalizedLight(sceneLightSpec.manifold),
+    };
+    const currentLight = cloneLight(sceneLights.runner);
+
+    function lightForProgress(progress) {
+      const p = clamp01(progress);
+      if (p < 0.17) return sceneLights.runner;
+      if (p < 0.24) return blendLights(sceneLights.runner, sceneLights.flow, smootherstep(mapRange(p, 0.17, 0.24)));
+      if (p < 0.41) return sceneLights.flow;
+      if (p < 0.48) return blendLights(sceneLights.flow, sceneLights.chen, smootherstep(mapRange(p, 0.41, 0.48)));
+      if (p < 0.74) return sceneLights.chen;
+      if (p < 0.86) return blendLights(sceneLights.chen, sceneLights.manifold, smootherstep(mapRange(p, 0.74, 0.86)));
+      return sceneLights.manifold;
+    }
+
+    function dampLightChannel(target, source, follow) {
+      target[0] = mix(target[0], source[0], follow);
+      target[1] = mix(target[1], source[1], follow);
+      target[2] = mix(target[2], source[2], follow);
+    }
+
+    function updateStageLighting(progress, dtSeconds) {
+      const target = lightForProgress(progress);
+      const follow = 1 - Math.exp(-dtSeconds / 0.92);
+      for (const key of ["base", "inner", "middle", "outer", "linearFrom", "linearMiddle", "linearTo", "fog", "core", "heading", "body", "caption"]) {
+        dampLightChannel(currentLight[key], target[key], follow);
+      }
+      for (const key of ["lightX", "lightY", "fogDensity", "grain", "vignette", "star", "warm"]) {
+        currentLight[key] = mix(currentLight[key], target[key], follow);
+      }
+
+      const style = document.documentElement.style;
+      style.setProperty("--bg-base", rgbString(currentLight.base));
+      style.setProperty("--gradient-inner", rgbaString(currentLight.inner, 0.92));
+      style.setProperty("--gradient-middle", rgbaString(currentLight.middle, 0.48));
+      style.setProperty("--gradient-outer", rgbaString(currentLight.outer, 0.88));
+      style.setProperty("--gradient-linear-from", rgbaString(currentLight.linearFrom, 0.34));
+      style.setProperty("--gradient-linear-middle", rgbaString(currentLight.linearMiddle, 0.20));
+      style.setProperty("--gradient-linear-to", rgbaString(currentLight.linearTo, 0.08));
+      style.setProperty("--light-x", `${(currentLight.lightX * 100).toFixed(2)}%`);
+      style.setProperty("--light-y", `${(currentLight.lightY * 100).toFixed(2)}%`);
+      style.setProperty("--fog-color", rgbaString(currentLight.fog, 1));
+      style.setProperty("--fog-density", currentLight.fogDensity.toFixed(3));
+      style.setProperty("--grain-opacity", currentLight.grain.toFixed(3));
+      style.setProperty("--vignette-opacity", currentLight.vignette.toFixed(3));
+      style.setProperty("--star-opacity", currentLight.star.toFixed(3));
+      style.setProperty("--warm-fill", `rgba(246, 161, 58, ${currentLight.warm.toFixed(3)})`);
+      style.setProperty("--heading-color", rgbString(currentLight.heading));
+      style.setProperty("--body-color", rgbString(currentLight.body));
+      style.setProperty("--caption-color", rgbString(currentLight.caption));
+      style.setProperty("--scene-core", rgbString(currentLight.core));
+    }
+
+    function fastSin01(unitPhase) {
+      return waveTable[Math.floor((unitPhase - Math.floor(unitPhase)) * WAVE_TABLE_SIZE) & WAVE_TABLE_MASK];
+    }
+
+    function fastCos01(unitPhase) {
+      return fastSin01(unitPhase + 0.25);
+    }
+
+    function permuteHash(id, salt) {
+      let x = ((id + 1) * 2654435761) >>> 0;
+      x ^= (salt * 2246822519) >>> 0;
+      x ^= x >>> 16;
+      x = Math.imul(x, 2246822519) >>> 0;
+      x ^= x >>> 13;
+      x = Math.imul(x, 3266489917) >>> 0;
+      return (x ^ (x >>> 16)) >>> 0;
+    }
+
+    function setRgbFromWeights(output, offset, w0, w1, w2, w3) {
+      const total = Math.max(0.0001, w0 + w1 + w2 + w3);
+      const b = w0 / total;
+      const c = w1 / total;
+      const a = w2 / total;
+      const r = w3 / total;
+      output[offset] =
+        palette.baseWhiteBlue[0] * b +
+        palette.activeCyan[0] * c +
+        palette.amberCadence[0] * a +
+        palette.roseAccent[0] * r;
+      output[offset + 1] =
+        palette.baseWhiteBlue[1] * b +
+        palette.activeCyan[1] * c +
+        palette.amberCadence[1] * a +
+        palette.roseAccent[1] * r;
+      output[offset + 2] =
+        palette.baseWhiteBlue[2] * b +
+        palette.activeCyan[2] * c +
+        palette.amberCadence[2] * a +
+        palette.roseAccent[2] * r;
+    }
+
+    function chenDeriv(x, y, z) {
+      return [
+        5 * x - y * z,
+        -10 * y + x * z,
+        -0.38 * z + (x * y) / 3,
+      ];
+    }
+
+    function rk4Step(p, dt) {
+      const k1 = chenDeriv(p[0], p[1], p[2]);
+      const k2 = chenDeriv(
+        p[0] + k1[0] * dt * 0.5,
+        p[1] + k1[1] * dt * 0.5,
+        p[2] + k1[2] * dt * 0.5
+      );
+      const k3 = chenDeriv(
+        p[0] + k2[0] * dt * 0.5,
+        p[1] + k2[1] * dt * 0.5,
+        p[2] + k2[2] * dt * 0.5
+      );
+      const k4 = chenDeriv(
+        p[0] + k3[0] * dt,
+        p[1] + k3[1] * dt,
+        p[2] + k3[2] * dt
+      );
+
+      p[0] += (k1[0] + 2 * k2[0] + 2 * k3[0] + k4[0]) * dt / 6;
+      p[1] += (k1[1] + 2 * k2[1] + 2 * k3[1] + k4[1]) * dt / 6;
+      p[2] += (k1[2] + 2 * k2[2] + 2 * k3[2] + k4[2]) * dt / 6;
+    }
+
+    function buildChenLeeTrajectory() {
+      const raw = new Float32Array(CHEN_POINTS * 3);
+      const p = [-0.1, -0.1, -5];
+      const min = [Infinity, Infinity, Infinity];
+      const max = [-Infinity, -Infinity, -Infinity];
+
+      for (let i = 0; i < CHEN_TRANSIENT + CHEN_POINTS; i++) {
+        rk4Step(p, CHEN_DT);
+        if (i < CHEN_TRANSIENT) continue;
+
+        const k = (i - CHEN_TRANSIENT) * 3;
+        raw[k] = p[0];
+        raw[k + 1] = p[1];
+        raw[k + 2] = p[2];
+
+        min[0] = Math.min(min[0], p[0]);
+        min[1] = Math.min(min[1], p[1]);
+        min[2] = Math.min(min[2], p[2]);
+        max[0] = Math.max(max[0], p[0]);
+        max[1] = Math.max(max[1], p[1]);
+        max[2] = Math.max(max[2], p[2]);
+      }
+
+      const center = [
+        (min[0] + max[0]) * 0.5,
+        (min[1] + max[1]) * 0.5,
+        (min[2] + max[2]) * 0.5,
+      ];
+      const half = Math.max(
+        (max[0] - min[0]) * 0.5,
+        (max[1] - min[1]) * 0.5,
+        (max[2] - min[2]) * 0.5,
+        0.0001
+      );
+
+      chenPoints = new Float32Array(CHEN_POINTS * 3);
+      chenPointBuckets = { inner: [], outer: [], crossing: [], ambient: [] };
+
+      for (let i = 0; i < CHEN_POINTS; i++) {
+        const k = i * 3;
+        const nx = (raw[k] - center[0]) / half;
+        const ny = (raw[k + 1] - center[1]) / half;
+        const nz = (raw[k + 2] - center[2]) / half;
+        const px = nz * 0.82 + ny * 0.08;
+        const py = ny * 0.76 + nz * 0.10;
+        const pz = nx * 1.08;
+
+        chenPoints[k] = px;
+        chenPoints[k + 1] = py;
+        chenPoints[k + 2] = pz;
+
+        const radial = Math.sqrt(py * py + pz * pz);
+        const centerPass = Math.abs(pz) < 0.22 && Math.abs(py) < 0.28;
+        const phase = i / CHEN_POINTS;
+
+        if (radial < 0.48) chenPointBuckets.inner.push(phase);
+        if (radial > 0.48 && radial < 0.98) chenPointBuckets.outer.push(phase);
+        if (centerPass || radial < 0.32) chenPointBuckets.crossing.push(phase);
+        if (radial > 0.72 || Math.abs(px) > 0.38) chenPointBuckets.ambient.push(phase);
+      }
+
+      for (const key of Object.keys(chenPointBuckets)) {
+        if (!chenPointBuckets[key].length) chenPointBuckets[key].push(0);
+      }
+    }
+
+    function sampleChenAtPhase(phase, target, radialScale = 1) {
+      const t = ((phase % 1) + 1) % 1;
+      const f = t * (CHEN_POINTS - 1);
+      const i0 = Math.floor(f);
+      const i1 = (i0 + 1) % CHEN_POINTS;
+      const mixT = f - i0;
+      const k0 = i0 * 3;
+      const k1 = i1 * 3;
+      const x = mix(chenPoints[k0], chenPoints[k1], mixT) * radialScale;
+      const y = mix(chenPoints[k0 + 1], chenPoints[k1 + 1], mixT) * radialScale;
+      const z = mix(chenPoints[k0 + 2], chenPoints[k1 + 2], mixT) * radialScale;
+      target.set(x, y, z);
+      return target;
+    }
+
+    function choosePhaseFromBucket(bucket, id, salt) {
+      const phases = chenPointBuckets[bucket] || chenPointBuckets.outer;
+      const index = permuteHash(id, salt) % phases.length;
+      const jitter = (((permuteHash(id, salt + 1) / 0xffffffff) || 0) - 0.5) * 0.0018;
+      return (phases[index] + jitter + 1) % 1;
+    }
+
+    function segmentFlowChenProgress(progress) {
+      const p0 = clamp01(progress);
+      const flowHold = 1 - smoothstepRange(0.10, 0.24, p0);
+      const flowToStreamP = smoothstepRange(0.10, 0.34, p0);
+      const flowVisibility = flowHold;
+      const flowLengthScale = mix(1.0, 0.62, smoothstepRange(0.10, 0.24, p0));
+      const streamP = smoothstepRange(0.24, 0.34, p0);
+      const chenSeedP = smoothstepRange(0.30, 0.34, p0) * 0.12;
+      const chenP = Math.max(chenSeedP, smoothstepRange(0.34, 0.86, p0));
+      const rotationP = smoothstepRange(0.34, 0.86, p0);
+      const lineP = smoothstepRange(0.58, 0.90, p0);
+      const settleP = smoothstepRange(0.86, 1.0, p0);
+      const chenMixP = mix(chenP * 0.94, 1.0, settleP);
+
+      return {
+        p: p0,
+        flowHold,
+        flowToStreamP,
+        flowVisibility,
+        flowLengthScale,
+        streamP,
+        chenP,
+        chenMixP,
+        rotationP,
+        lineP,
+        settleP,
+        blend: chenMixP,
+      };
+    }
+
+    function segmentChenManifoldProgress(progress) {
+      const p0 = clamp01(progress);
+      const chenHoldP = 1 - smoothstepRange(0.00, 0.18, p0);
+      const lineStretchP = smoothstepRange(0.00, 0.18, p0);
+      const unfoldP = smoothstepRange(0.18, 0.42, p0);
+      const manifoldP = smoothstepRange(0.42, 0.72, p0);
+      const networkP = smoothstepRange(0.18, 0.72, p0);
+      const settleP = smoothstepRange(0.72, 1.0, p0);
+      const lineP = mix(0.58, 1.0, smoothstepRange(0.18, 0.84, p0));
+      const chenTraceP = 1 - smoothstepRange(0.44, 0.78, p0);
+
+      return {
+        p: p0,
+        chenHoldP,
+        lineStretchP,
+        unfoldP,
+        manifoldP,
+        networkP,
+        lineP,
+        chenTraceP,
+        settleP,
+        blend: networkP,
+      };
+    }
+
+    function assemblyState(progress) {
+      const p = clamp01(progress);
+      if (p < 0.17) return { scene: "Runner steady", key: "runner", stableKey: "runner", local: mapRange(p, 0.00, 0.17), runnerFlowP: 0, flowChenP: 0, chenManifoldP: 0 };
+      if (p < 0.24) return { scene: "Runner -> Flow", key: "runner", stableKey: null, local: mapRange(p, 0.17, 0.24), runnerFlowP: smoothstepRange(0.17, 0.24, p), flowChenP: 0, chenManifoldP: 0 };
+      if (p < 0.41) return { scene: "Flow steady", key: "flow", stableKey: "flow", local: mapRange(p, 0.24, 0.41), runnerFlowP: 1, flowChenP: 0, chenManifoldP: 0 };
+      if (p < 0.48) return { scene: "Flow -> Chen-Lee", key: "flow", stableKey: null, local: mapRange(p, 0.41, 0.48), runnerFlowP: 1, flowChenP: mapRange(p, 0.41, 0.48), chenManifoldP: 0 };
+      if (p < 0.66) return { scene: "Chen-Lee steady", key: "chen", stableKey: "chen", local: mapRange(p, 0.48, 0.66), runnerFlowP: 1, flowChenP: 1, chenManifoldP: 0 };
+      if (p < 0.74) return { scene: "Chen-Lee / Work hold", key: "chen", stableKey: "chen", local: mapRange(p, 0.66, 0.74), runnerFlowP: 1, flowChenP: 1, chenManifoldP: 0 };
+      if (p < 0.86) return { scene: "Chen-Lee -> 20D", key: "chen", stableKey: null, local: mapRange(p, 0.74, 0.86), runnerFlowP: 1, flowChenP: 1, chenManifoldP: mapRange(p, 0.74, 0.86) };
+      return { scene: "20D steady", key: "manifold", stableKey: "manifold", local: mapRange(p, 0.86, 1.0), runnerFlowP: 1, flowChenP: 1, chenManifoldP: 1 };
+    }
+
+    function segmentDiagnostics(progress) {
+      const p = clamp01(progress);
+      let start = 0;
+      let end = 0.17;
+      let type = "steady";
+      let name = "Runner steady";
+
+      if (p < 0.17) {
+        start = 0.00; end = 0.17; type = "steady"; name = "Runner steady";
+      } else if (p < 0.24) {
+        start = 0.17; end = 0.24; type = "transition"; name = "Runner -> Flow";
+      } else if (p < 0.41) {
+        start = 0.24; end = 0.41; type = "steady"; name = "Flow steady";
+      } else if (p < 0.48) {
+        start = 0.41; end = 0.48; type = "transition"; name = "Flow -> Chen-Lee";
+      } else if (p < 0.66) {
+        start = 0.48; end = 0.66; type = "steady"; name = "Chen-Lee steady";
+      } else if (p < 0.74) {
+        start = 0.66; end = 0.74; type = "hold"; name = "Chen-Lee / Work hold";
+      } else if (p < 0.86) {
+        start = 0.74; end = 0.86; type = "transition"; name = "Chen-Lee -> 20D";
+      } else {
+        start = 0.86; end = 1.00; type = "steady"; name = "20D steady";
+      }
+
+      return {
+        name,
+        start,
+        end,
+        type,
+        local: mapRange(p, start, end),
+        flowToChenP: mapRange(p, 0.41, 0.48),
+        chenTo20dP: mapRange(p, 0.74, 0.86),
+      };
+    }
+
+    function stableCopyKey(progress, state) {
+      return state.stableKey;
+    }
+
+    function sceneOwnsCopy(progress, state, key) {
+      if (key === "runner") return progress < 0.24 && state.key === "runner";
+      if (key === "flow") return progress >= 0.24 && progress < 0.48 && state.key === "flow";
+      if (key === "chen") return progress >= 0.48 && progress < 0.86 && state.key === "chen";
+      return progress >= 0.86 && state.key === "manifold";
+    }
+
+    function updateCopy(progress, state, wallTime, dtSeconds) {
+      const stableKey = stableCopyKey(progress, state);
+      let activeStableTime = 0;
+
+      for (const slot of copyRevealStates) {
+        slot.sceneActive = sceneOwnsCopy(progress, state, slot.key);
+        slot.sceneStable = stableKey === slot.key;
+
+        if (slot.sceneStable) {
+          if (slot.stableStartTime === null) slot.stableStartTime = wallTime;
+        } else {
+          slot.stableStartTime = null;
+        }
+
+        const stableDuration = slot.stableStartTime === null ? 0 : wallTime - slot.stableStartTime;
+        if (slot.sceneStable) activeStableTime = stableDuration;
+        const target = slot.sceneStable && stableDuration >= TEXT_REVEAL_DELAY ? 1 : 0;
+        const tau = target > slot.textRevealProgress ? TEXT_REVEAL_IN_TAU : TEXT_REVEAL_OUT_TAU;
+        const follow = 1 - Math.exp(-dtSeconds / tau);
+        slot.textRevealProgress += (target - slot.textRevealProgress) * follow;
+        if (Math.abs(slot.textRevealProgress - target) < 0.002) slot.textRevealProgress = target;
+
+        const reveal = smootherstep(slot.textRevealProgress);
+        const y = (1 - reveal) * 12;
+        const blur = (1 - reveal) * 8;
+        slot.card.style.opacity = reveal.toFixed(3);
+        slot.card.style.transform = `translateY(${y.toFixed(2)}px)`;
+        slot.card.style.filter = `blur(${blur.toFixed(2)}px)`;
+        slot.card.style.pointerEvents = reveal > 0.82 ? "auto" : "none";
+        slot.card.setAttribute("aria-hidden", reveal > 0.05 ? "false" : "true");
+        slot.card.classList.toggle("is-visible", reveal > 0.02);
+      }
+
+      for (const button of navButtons) {
+        const target = Number(button.dataset.jump);
+        const active =
+          (target === 0 && progress < 0.24) ||
+          (target === 0.24 && progress >= 0.24 && progress < 0.48) ||
+          (target === 0.48 && progress >= 0.48 && progress < 0.86) ||
+          (target === 0.86 && progress >= 0.86);
+        button.classList.toggle("is-active", active);
+      }
+
+      return {
+        sceneStable: stableKey !== null,
+        stableKey,
+        timeInStable: activeStableTime,
+      };
+    }
+
+    function scrollToProgress(progress, options = {}) {
+      const now = performance.now() / 1000;
+      const reason = options.reason || "nav";
+      if (reason !== "snap") {
+        cancelTransitionSnap("programmatic scroll");
+        snapSuppressUntil = now + 1.4;
+        snapPending = false;
+      }
+      window.scrollTo({
+        top: progressToScrollY(progress),
+        behavior: reason === "snap" ? "auto" : "smooth",
+      });
+    }
+
+    function getMaxScrollY() {
+      return Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+    }
+
+    function progressToScrollY(progress) {
+      return clamp01(progress) * getMaxScrollY();
+    }
+
+    function updateScrollTarget() {
+      maxScrollY = getMaxScrollY();
+      currentScrollY = Math.min(maxScrollY, Math.max(0, window.scrollY || window.pageYOffset || 0));
+      rawScrollProgress = clamp01(currentScrollY / maxScrollY);
+      scrollProgress = rawScrollProgress;
+      isAtBottom = currentScrollY >= maxScrollY - 1;
+    }
+
+    function updateScrollDirection(wallTime) {
+      const delta = currentScrollY - previousScrollY;
+      previousScrollY = currentScrollY;
+      if (Math.abs(delta) > 0.5) {
+        if (!isSnapping && wallTime >= snapSuppressUntil) {
+          lastScrollDirection = delta > 0 ? "down" : "up";
+          lastUserScrollTime = wallTime;
+        }
+      }
+    }
+
+    function updateProgressLockReason() {
+      lockReason = "none";
+      if (inputMode === "scroll" && rawScrollProgress < 0.995 && targetProgress > rawScrollProgress + 0.012) {
+        lockReason = "targetProgress not following rawScrollProgress";
+      }
+    }
+
+    function isTransitionProgress(progress) {
+      return (
+        (progress > 0.17 && progress < 0.24) ||
+        (progress > 0.41 && progress < 0.48) ||
+        (progress > 0.74 && progress < 0.86)
+      );
+    }
+
+    function transitionSnapCandidate(progress, direction) {
+      if (direction !== "down" && direction !== "up") return null;
+
+      if (progress > 0.17 && progress < 0.24) {
+        return {
+          target: direction === "down" ? 0.26 : 0.04,
+          reason: direction === "down" ? "Runner->Flow down" : "Runner->Flow up",
+        };
+      }
+
+      if (progress > 0.41 && progress < 0.48) {
+        return {
+          target: direction === "down" ? 0.50 : 0.26,
+          reason: direction === "down" ? "Flow->Chen down" : "Flow->Chen up",
+        };
+      }
+
+      if (progress > 0.74 && progress < 0.86) {
+        return {
+          target: direction === "down" ? 0.88 : 0.68,
+          reason: direction === "down" ? "Chen->20D down" : "Chen->20D up",
+        };
+      }
+
+      return null;
+    }
+
+    function cancelTransitionSnap(reason, canceledByUser = false) {
+      if (!isSnapping) return;
+      window.scrollTo({ top: currentScrollY, behavior: "auto" });
+      isSnapping = false;
+      snapPending = false;
+      snapTargetProgress = null;
+      snapReason = reason;
+      snapCanceledByUser = canceledByUser;
+      snapCooldownUntil = performance.now() / 1000 + SNAP_COOLDOWN;
+    }
+
+    function startTransitionSnap(candidate, wallTime) {
+      const distanceProgress = Math.abs(candidate.target - rawScrollProgress);
+      const durationT = smoothstepRange(0.03, 0.14, distanceProgress);
+      isSnapping = true;
+      snapPending = false;
+      snapStartProgress = rawScrollProgress;
+      snapTargetProgress = candidate.target;
+      snapReason = candidate.reason;
+      snapStartedAt = wallTime;
+      snapStartY = currentScrollY;
+      snapTargetY = progressToScrollY(candidate.target);
+      snapDuration = Math.max(0.85, Math.min(1.45, mix(0.85, 1.45, durationT)));
+      snapElapsed = 0;
+      snapEaseT = 0;
+      snapCanceledByUser = false;
+      snapSuppressUntil = wallTime + 0.9;
+    }
+
+    function snapEase(value) {
+      const t = clamp01(value);
+      return t < 0.5
+        ? 4 * t * t * t
+        : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    function updateSnapTween(wallTime) {
+      if (!isSnapping) return;
+
+      snapElapsed = Math.max(0, wallTime - snapStartedAt);
+      const rawT = snapDuration > 0 ? clamp01(snapElapsed / snapDuration) : 1;
+      snapEaseT = snapEase(rawT);
+      const nextY = mix(snapStartY, snapTargetY, snapEaseT);
+      window.scrollTo(0, nextY);
+
+      const remaining = Math.abs(snapTargetY - nextY);
+      if (remaining < 1 || rawT >= 1) {
+        isSnapping = false;
+        snapPending = false;
+        snapCooldownUntil = wallTime + SNAP_COOLDOWN;
+      }
+    }
+
+    function updateTransitionSnapAssist(wallTime) {
+      const candidate = transitionSnapCandidate(rawScrollProgress, lastScrollDirection);
+      isInTransitionSegment = isTransitionProgress(rawScrollProgress);
+      timeSinceLastScroll = Math.max(0, wallTime - lastUserScrollTime);
+
+      if (isSnapping) {
+        const timedOut = wallTime - snapStartedAt > snapDuration + 0.25;
+        if (timedOut) {
+          isSnapping = false;
+          snapPending = false;
+          snapCooldownUntil = wallTime + SNAP_COOLDOWN;
+        }
+        return;
+      }
+
+      const canSnap =
+        inputMode === "scroll" &&
+        candidate &&
+        wallTime >= snapCooldownUntil &&
+        wallTime >= snapSuppressUntil;
+
+      snapPending = Boolean(canSnap && timeSinceLastScroll < SNAP_DEBOUNCE);
+
+      if (canSnap && timeSinceLastScroll >= SNAP_DEBOUNCE) {
+        startTransitionSnap(candidate, wallTime);
+      } else if (!candidate || inputMode !== "scroll") {
+        snapPending = false;
+      }
+    }
+
+    function setInputMode(mode) {
+      if (mode !== "scroll") {
+        cancelTransitionSnap(`${mode} input`);
+        snapPending = false;
+      }
+      inputMode = mode;
+      autoplay = mode === "autoplay";
+      controlAutoplay.textContent = autoplay ? "Autoplay on" : "Autoplay off";
+      controlScrollTest.checked = mode === "scroll";
+    }
+
+    function setControlsVisible(nextVisible) {
+      controlsVisible = Boolean(nextVisible);
+      controlPanel.classList.toggle("is-hidden", !controlsVisible);
+      controlsToggle.classList.toggle("is-active", controlsVisible);
+      controlsToggle.textContent = controlsVisible ? "hide" : "controls";
+      controlsToggle.setAttribute("aria-pressed", controlsVisible ? "true" : "false");
+    }
+
+    function setMobileMenuOpen(open) {
+      nav.classList.toggle("is-menu-open", open);
+      mobileMenuToggle.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+
+    function writeTargetProgress(source, value) {
+      const next = clamp01(value);
+
+      if (source !== inputMode) {
+        console.warn(`[progress] ignored ${source} write while inputMode is ${inputMode}`);
+        return;
+      }
+
+      if (source !== lastProgressWriter && next < targetProgress - 0.06) {
+        console.warn(`[progress] ${source} moved target backward from ${targetProgress.toFixed(3)} to ${next.toFixed(3)}`);
+      }
+
+      targetProgress = next;
+      lastProgressWriter = source;
+    }
+
+    function syncSliderTo(value) {
+      rawSliderValue = clamp01(value);
+      controlProgress.value = rawSliderValue.toFixed(3);
+    }
+
+    function autoplayValue(time, speed) {
+      const phase = time * 0.13 * speed;
+      return 0.5 - 0.5 * Math.cos(TAU * (phase - Math.floor(phase)));
+    }
+
+    function updateEffectiveLineDensity(time, progress) {
+      const shouldAuto = controlBreathingPulse.checked && progress >= 0.995;
+      breathingActive = shouldAuto;
+
+      if (!shouldAuto) {
+        if (lineDensityAutoActive) {
+          controlLineDensity.value = manualLineDensity.toFixed(3);
+        }
+        lineDensityAutoActive = false;
+        return manualLineDensity;
+      }
+
+      if (!lineDensityAutoActive) {
+        steadyStartTime = time;
+        lineDensityAutoActive = true;
+      }
+
+      const cyclePhase = (((time - steadyStartTime) / BREATH_CYCLE) % 1 + 1) % 1;
+      const breath = 0.5 - 0.5 * Math.cos(TAU * cyclePhase);
+      controlLineDensity.value = breath.toFixed(3);
+      return breath;
+    }
+
+    function buildBoneProfiles(targets, minY, height) {
+      const profiles = new Map();
+
+      for (let i = 0; i < targets.count; i++) {
+        const binding = targets.bindings[i];
+        const bone = binding ? binding.dominantBone : -1;
+        if (bone < 0) continue;
+
+        const k = i * 3;
+        const yNorm = (targets.positions[k + 1] - minY) / height;
+        const vx = targets.velocityHints[k];
+        const vy = targets.velocityHints[k + 1];
+        const vz = targets.velocityHints[k + 2];
+        const speed = Math.sqrt(vx * vx + vy * vy + vz * vz);
+
+        let profile = profiles.get(bone);
+        if (!profile) {
+          profile = { count: 0, y: 0, speed: 0 };
+          profiles.set(bone, profile);
+        }
+
+        profile.count += 1;
+        profile.y += yNorm;
+        profile.speed += speed;
+      }
+
+      let maxSpeed = 0.0001;
+      for (const profile of profiles.values()) {
+        profile.y /= profile.count;
+        profile.speed /= profile.count;
+        maxSpeed = Math.max(maxSpeed, profile.speed);
+      }
+
+      for (const profile of profiles.values()) {
+        profile.speedNorm = profile.speed / maxSpeed;
+      }
+
+      return profiles;
+    }
+
+    function regionForParticle(i, yNorm, speedNorm, boneProfile) {
+      const boneY = boneProfile ? boneProfile.y : yNorm;
+      const boneSpeed = boneProfile ? boneProfile.speedNorm : speedNorm;
+      const driftCandidate = hash01(i, 40) < 0.045 || (speedNorm > 0.78 && hash01(i, 41) < 0.16);
+
+      if (yNorm < 0.155 || boneY < 0.13) return "foot";
+      if (driftCandidate && yNorm > 0.18 && yNorm < 0.82) return "ambient";
+      if (yNorm < 0.46 || boneY < 0.43) return "leg";
+      if (yNorm > 0.80) return "chest";
+      if (yNorm > 0.31 && yNorm < 0.73 && (speedNorm > 0.36 || boneSpeed > 0.34)) return "arm";
+      if (yNorm > 0.48 && yNorm < 0.78) return "chest";
+      return "torso";
+    }
+
+    function laneForRegion(region) {
+      if (region === "arm") return "upper";
+      if (region === "leg") return "lower";
+      if (region === "foot") return "foot";
+      if (region === "ambient") return "ambient";
+      return "main";
+    }
+
+    function buildFlowFeatures() {
+      updateRunnerParticles(0);
+      const targets = getRunnerParticleTargets();
+      const bounds = getRunnerBounds();
+      const minY = bounds.min[1];
+      const height = Math.max(0.0001, bounds.size[1]);
+      const profiles = buildBoneProfiles(targets, minY, height);
+      const speeds = new Float32Array(targets.count);
+      let maxSpeed = 0.0001;
+
+      for (let i = 0; i < targets.count; i++) {
+        const k = i * 3;
+        const vx = targets.velocityHints[k];
+        const vy = targets.velocityHints[k + 1];
+        const vz = targets.velocityHints[k + 2];
+        const speed = Math.sqrt(vx * vx + vy * vy + vz * vz);
+        speeds[i] = speed;
+        maxSpeed = Math.max(maxSpeed, speed);
+      }
+
+      flowFeatures = new Array(targets.count);
+      const buckets = { main: [], upper: [], lower: [], foot: [], ambient: [] };
+
+      for (let i = 0; i < targets.count; i++) {
+        const k = i * 3;
+        const yNorm = (targets.positions[k + 1] - minY) / height;
+        const speedNorm = speeds[i] / maxSpeed;
+        const binding = targets.bindings[i];
+        const boneProfile = binding ? profiles.get(binding.dominantBone) : null;
+        const region = regionForParticle(i, yNorm, speedNorm, boneProfile);
+        const lane = laneForRegion(region);
+        const z = targets.positions[k + 2];
+        const x = targets.positions[k];
+        const feature = {
+          id: i,
+          lane,
+          region,
+          yNorm,
+          speedNorm,
+          u: 0,
+          phase: hash01(i, 50) * TAU,
+          phase2: hash01(i, 51) * TAU,
+          spread: hash01(i, 52),
+          depthSign: hash01(i, 53) < 0.5 ? -1 : 1,
+          delay: hash01(i, 54) * 0.07,
+          footSpark: region === "foot" && hash01(i, 55) < 0.36,
+          sortKey: z + x * 0.2 + hash01(i, 56) * 0.08,
+          lastAmber: 0,
+          flowSize: mix(0.00085, 0.00175, hash01(i, 57)),
+        };
+
+        if (lane === "ambient") {
+          feature.sortKey = hash01(i, 58) * 2 - 1;
+          feature.flowSize = mix(0.00065, 0.0013, hash01(i, 59));
+        }
+
+        buckets[lane].push(feature);
+        flowFeatures[i] = feature;
+      }
+
+      for (const lane of Object.values(buckets)) {
+        lane.sort((a, b) => a.sortKey - b.sortKey);
+        const denom = Math.max(1, lane.length);
+        for (let rank = 0; rank < lane.length; rank++) {
+          lane[rank].u = clamp01((rank + 0.5) / denom + (hash01(lane[rank].id, 60) - 0.5) * 0.018);
+        }
+      }
+    }
+
+    function buildChenBindings() {
+      const targets = getRunnerParticleTargets();
+      chenBindings = new Array(targets.count);
+
+      for (let i = 0; i < targets.count; i++) {
+        const feature = flowFeatures[i];
+        let bucket = "outer";
+        let radialScale = 0.86;
+        let drift = 0.010;
+
+        if (feature.lane === "main") {
+          bucket = "inner";
+          radialScale = feature.region === "chest" ? 0.66 : 0.72;
+          drift = 0.009;
+        } else if (feature.lane === "upper" || feature.lane === "lower") {
+          bucket = "outer";
+          radialScale = feature.lane === "upper" ? 0.94 : 1.02;
+          drift = 0.0115;
+        } else if (feature.lane === "foot") {
+          bucket = "crossing";
+          radialScale = 0.82;
+          drift = 0.0135;
+        } else if (feature.lane === "ambient") {
+          bucket = "ambient";
+          radialScale = mix(1.02, 1.22, hash01(i, 72));
+          drift = 0.0075;
+        }
+
+        chenBindings[i] = {
+          phase: choosePhaseFromBucket(bucket, i, 70),
+          drift,
+          radialScale,
+          orbitOffset: (hash01(i, 73) - 0.5) * 0.012,
+          lineEligible: hash01(i, 74) < 0.09,
+        };
+      }
+    }
+
+    function buildManifoldBindings() {
+      const targets = getRunnerParticleTargets();
+      const strandCount = 18;
+      manifoldBindings = new Array(targets.count);
+      manifoldStrands = Array.from({ length: strandCount }, () => []);
+
+      for (let i = 0; i < targets.count; i++) {
+        const feature = flowFeatures[i];
+        const laneOffset =
+          feature.lane === "upper" ? 3 :
+          feature.lane === "lower" ? 10 :
+          feature.lane === "foot" ? 15 :
+          feature.lane === "ambient" ? 6 : 0;
+        const strand = (laneOffset + (permuteHash(i, 101) % (feature.lane === "ambient" ? strandCount : 5))) % strandCount;
+        const strandNorm = strandCount <= 1 ? 0.5 : strand / (strandCount - 1);
+        const u = hash01(i, 102);
+        const depthLayer = hash01(i, 103);
+        const warmNode = (feature.lane === "foot" && hash01(i, 104) < 0.28) || hash01(i, 105) < 0.018;
+        const binding = {
+          id: i,
+          strand,
+          u,
+          rank: 0,
+          strandNorm,
+          strandY: mix(-0.74, 0.74, strandNorm) + (hash01(i, 106) - 0.5) * 0.026,
+          width: mix(1.46, 1.92, hash01(i, 107)),
+          depth: mix(-0.52, 0.58, depthLayer),
+          depthLayer,
+          phaseA: hash01(i, 108) * TAU,
+          phaseB: hash01(i, 109) * TAU,
+          phaseC: hash01(i, 110) * TAU,
+          phaseD: hash01(i, 111) * TAU,
+          freqA: 1.0 + (permuteHash(i, 112) % 5),
+          freqB: 2.0 + (permuteHash(i, 113) % 7),
+          freqC: 3.0 + (permuteHash(i, 114) % 9),
+          flowSpeed: mix(0.0045, 0.014, hash01(i, 115)),
+          parallaxSign: hash01(i, 116) < 0.5 ? -1 : 1,
+          warmNode,
+          size: mix(0.0007, warmNode ? 0.0021 : 0.00145, hash01(i, 117)),
+        };
+
+        manifoldBindings[i] = binding;
+        manifoldStrands[strand].push(binding);
+      }
+
+      for (const strand of manifoldStrands) {
+        strand.sort((a, b) => a.u - b.u);
+        const denom = Math.max(1, strand.length - 1);
+        for (let rank = 0; rank < strand.length; rank++) {
+          strand[rank].rank = rank / denom;
+        }
+      }
+    }
+
+    function computeFlowPosition(feature, time, target) {
+      const breath = 0.5 + 0.5 * fastSin01(time * 0.22);
+      const local = (feature.u + time * 0.030 + feature.speedNorm * 0.016) % 1;
+      const centered = local * 2 - 1;
+      const lanePhase =
+        feature.lane === "upper" ? 0.18 :
+        feature.lane === "lower" ? 0.52 :
+        feature.lane === "foot" ? 0.76 :
+        feature.lane === "ambient" ? feature.spread : 0.0;
+      let z = centered * FLOW_WIDTH;
+      let x = 0;
+      let y = 0;
+      let laneAmp = 0.08;
+      let laneBreath = 0.016;
+      let laneThickness = 0.045;
+
+      if (feature.lane === "main") {
+        y = 0.005;
+        laneAmp = feature.region === "chest" ? 0.135 : 0.105;
+        laneBreath = feature.region === "chest" ? 0.038 : 0.022;
+        laneThickness = feature.region === "chest" ? 0.055 : 0.048;
+        x = (feature.spread - 0.5) * 0.035;
+      } else if (feature.lane === "upper") {
+        y = 0.27;
+        laneAmp = 0.092;
+        laneBreath = 0.016;
+        laneThickness = 0.040;
+        x = 0.018 * feature.depthSign + (feature.spread - 0.5) * 0.04;
+      } else if (feature.lane === "lower") {
+        y = -0.285;
+        laneAmp = 0.105;
+        laneBreath = 0.012;
+        laneThickness = 0.046;
+        x = -0.012 * feature.depthSign + (feature.spread - 0.5) * 0.042;
+      } else if (feature.lane === "foot") {
+        y = -0.47;
+        laneAmp = 0.072;
+        laneBreath = 0.008;
+        laneThickness = 0.030;
+        x = (feature.spread - 0.5) * 0.038;
+      } else {
+        z = centered * (FLOW_WIDTH + 0.22);
+        y = mix(-0.62, 0.54, hash01(feature.id, 61));
+        x = mix(-0.16, 0.16, hash01(feature.id, 62));
+        laneAmp = 0.026;
+        laneBreath = 0.016;
+      }
+
+      const primary = fastSin01(local * 1.35 - time * 0.105 + lanePhase);
+      const secondary = fastSin01(local * 3.7 + time * 0.055 + lanePhase * 0.72);
+      const inhaleCurl = fastSin01(local * 0.62 + breath * 0.18 + lanePhase * 0.38 + (feature.phase * 0.12) / TAU);
+      const envelope = 0.74 + breath * 0.34;
+      const pulseBase = 0.5 + 0.5 * fastSin01(local * 4.0 - time * 0.78 + feature.phase2 / TAU);
+      const pulse2 = pulseBase * pulseBase;
+      const pulse4 = pulse2 * pulse2;
+      const pulse = pulse4 * pulse4 * pulseBase;
+
+      y += (primary * 0.58 + secondary * 0.24 + inhaleCurl * 0.18) * laneAmp * envelope;
+      y += (breath - 0.5) * laneBreath;
+      y += (feature.spread - 0.5) * laneThickness;
+      x += fastSin01(local * 2.2 + time * 0.046 + feature.phase / TAU) * 0.018;
+      z += fastSin01(time * 0.08 + (feature.phase * 0.15) / TAU) * 0.012;
+
+      if (feature.lane === "foot") {
+        y += pulse * 0.15;
+        z += fastSin01(local * 8.0 - time * 1.05) * 0.018 * pulse;
+        feature.lastAmber = feature.footSpark ? pulse : 0;
+      } else {
+        feature.lastAmber = 0;
+      }
+
+      if (feature.lane === "ambient") {
+        y += fastSin01(time * 0.05 + feature.spread) * 0.032;
+        x += fastCos01(time * 0.04 + feature.u) * 0.032;
+      }
+
+      target.set(x, y, z);
+      return target;
+    }
+
+    function computeChenPosition(binding, feature, time, speed, target) {
+      const phase = binding.phase + time * speed * binding.drift + binding.orbitOffset;
+      sampleChenAtPhase(phase, target, binding.radialScale);
+
+      if (feature.lane === "ambient") {
+        const float = fastSin01(time * 0.035 + feature.spread) * 0.035;
+        target.x += (hash01(feature.id, 80) - 0.5) * 0.09;
+        target.y += float;
+        target.z += (hash01(feature.id, 81) - 0.5) * 0.10;
+      }
+
+      return target;
+    }
+
+    function computeUnfoldedChenPosition(binding, feature, chen, time, speed, segment, target) {
+      const phase = binding.phase + time * speed * binding.drift + binding.orbitOffset;
+      sampleChenAtPhase(phase + 0.0014 + feature.speedNorm * 0.0008, orbitAheadPosition, binding.radialScale);
+      tangentPosition.copy(orbitAheadPosition).sub(chen);
+      if (tangentPosition.lengthSq() < 0.000001) {
+        tangentPosition.set(0, 0, 1);
+      } else {
+        tangentPosition.normalize();
+      }
+
+      const laneSign =
+        feature.lane === "upper" ? 1 :
+        feature.lane === "lower" || feature.lane === "foot" ? -1 :
+        feature.lane === "ambient" ? (feature.depthSign > 0 ? 1 : -1) : 0;
+      const pull = segment.unfoldP;
+      const stretch = (0.18 + feature.speedNorm * 0.18 + hash01(feature.id, 118) * 0.12) * pull;
+      const open = (hash01(feature.id, 119) - 0.5) * pull;
+
+      target.set(
+        chen.x + tangentPosition.x * stretch + open * 0.10,
+        chen.y + tangentPosition.y * stretch + laneSign * 0.11 * pull + open * 0.05,
+        chen.z + tangentPosition.z * stretch * 1.55 + laneSign * 0.06 * pull
+      );
+      target.x *= mix(1.0, 0.86, pull);
+      target.y *= mix(1.0, 1.12, pull);
+      target.z *= mix(1.0, 1.24, pull);
+      return target;
+    }
+
+    function computeManifoldPosition(binding, feature, time, speed, depthScale, parallaxSpeed, target) {
+      const t = binding.u + time * speed * binding.flowSpeed;
+      const u = ((t % 1) + 1) % 1;
+      const open = u * 2 - 1;
+      const slow = time * (0.020 + parallaxSpeed * 0.026);
+      const highA = fastSin01(u * binding.freqA + slow + binding.phaseA / TAU);
+      const highB = fastCos01(u * binding.freqB - slow * 0.72 + binding.phaseB / TAU);
+      const highC = fastSin01(u * binding.freqC + slow * 0.44 + binding.phaseC / TAU);
+      const highD = fastCos01((u + binding.strandNorm) * 6.5 + slow * 0.31 + binding.phaseD / TAU);
+      const layerBreath = fastSin01(time * 0.018 + binding.strandNorm * 1.7 + binding.phaseA / TAU);
+      const strandCurl = fastSin01(open * 1.55 + binding.strandNorm * 2.2 + slow * 0.9);
+
+      let z = open * binding.width;
+      let y = binding.strandY * (0.92 + layerBreath * 0.09);
+      let x = binding.depth * depthScale;
+
+      z += (highA * 0.16 + highB * 0.08 + strandCurl * 0.12) * (0.72 + binding.depthLayer * 0.42);
+      y += highB * 0.12 + highC * 0.06 + strandCurl * 0.075;
+      x += (highC * 0.16 + highD * 0.10 + binding.parallaxSign * 0.035) * depthScale;
+
+      const contactMask = smoothstepRange(0.62, 0.90, z) * (1 - smoothstepRange(1.34, 1.68, z)) * (1 - smoothstepRange(0.18, 0.34, Math.abs(y)));
+      if (contactMask > 0) {
+        y += Math.sign(y || binding.parallaxSign) * contactMask * 0.20;
+        z += contactMask * 0.12;
+        x -= contactMask * 0.10 * depthScale;
+      }
+
+      if (feature.lane === "ambient") {
+        y += (hash01(feature.id, 120) - 0.5) * 0.16;
+        z += (hash01(feature.id, 121) - 0.5) * 0.18;
+        x += (hash01(feature.id, 122) - 0.5) * 0.16 * depthScale;
+      }
+
+      target.set(x, y, z);
+      return target;
+    }
+
+    function computeTwistedStreamPosition(flow, feature, time, target) {
+      const lanePhase =
+        feature.lane === "upper" ? 0.19 :
+        feature.lane === "lower" ? 0.47 :
+        feature.lane === "foot" ? 0.68 :
+        feature.lane === "ambient" ? 0.83 : 0.04;
+      const laneY =
+        feature.lane === "upper" ? 0.24 :
+        feature.lane === "lower" ? -0.24 :
+        feature.lane === "foot" ? -0.43 :
+        feature.lane === "ambient" ? mix(-0.54, 0.48, feature.spread) : 0.0;
+      const openU = (feature.u - 0.5) * 2;
+      const edgeTaper = 1 - Math.abs(openU) * 0.34;
+      const twist = openU * (2.35 + feature.speedNorm * 0.42) + lanePhase * TAU + time * 0.17;
+      const secondary = openU * 4.2 + feature.phase2 / TAU + lanePhase * 1.7 - time * 0.055;
+      const laneSpread = (feature.spread - 0.5);
+      const laneOffset = (feature.lane === "upper" || feature.lane === "lower")
+        ? (feature.lane === "upper" ? 0.05 : -0.05)
+        : 0;
+
+      target.z = openU * mix(0.82, 0.70, feature.speedNorm) + laneOffset;
+      target.z += fastSin01(secondary) * 0.055 * edgeTaper;
+      target.z += laneSpread * 0.035;
+      target.x = fastSin01(twist / TAU) * 0.23 * edgeTaper;
+      target.x += fastSin01(secondary * 0.37 + feature.spread) * 0.055;
+      target.x += feature.depthSign * mix(0.018, 0.052, feature.speedNorm);
+      target.y = mix(flow.y, laneY, 0.58);
+      target.y += fastCos01(twist / TAU + feature.spread * 0.11) * 0.082 * edgeTaper;
+      target.y += laneSpread * 0.026;
+
+      if (feature.lane === "ambient") {
+        target.x += laneSpread * 0.14;
+        target.y += fastSin01(time * 0.035 + feature.spread) * 0.045;
+        target.z += mix(-0.24, 0.24, hash01(feature.id, 82));
+      }
+
+      return target;
+    }
+
+    function flowWeights(feature) {
+      if (feature.lane === "foot") {
+        const amber = feature.footSpark ? 0.12 + feature.lastAmber * 0.48 : 0.02;
+        flowStyle.w0 = 0.64 - amber * 0.18;
+        flowStyle.w1 = 0.13;
+        flowStyle.w2 = amber;
+        flowStyle.w3 = 0.02;
+      } else if (feature.lane === "upper") {
+        flowStyle.w0 = 0.64;
+        flowStyle.w1 = 0.30;
+        flowStyle.w2 = 0.0;
+        flowStyle.w3 = 0.03;
+      } else if (feature.lane === "lower") {
+        flowStyle.w0 = 0.72;
+        flowStyle.w1 = 0.20;
+        flowStyle.w2 = 0.0;
+        flowStyle.w3 = 0.02;
+      } else if (feature.lane === "ambient") {
+        flowStyle.w0 = 0.52;
+        flowStyle.w1 = 0.22;
+        flowStyle.w2 = 0.0;
+        flowStyle.w3 = 0.10;
+      } else if (feature.region === "chest") {
+        flowStyle.w0 = 0.68;
+        flowStyle.w1 = 0.31;
+        flowStyle.w2 = 0.0;
+        flowStyle.w3 = 0.02;
+      } else {
+        flowStyle.w0 = 0.76;
+        flowStyle.w1 = 0.19;
+        flowStyle.w2 = 0.0;
+        flowStyle.w3 = 0.02;
+      }
+
+      return flowStyle;
+    }
+
+    function chenWeights(feature, binding) {
+      if (feature.lane === "foot") {
+        const amber = feature.footSpark ? 0.14 + feature.lastAmber * 0.34 : 0.03;
+        chenStyle.w0 = 0.56;
+        chenStyle.w1 = 0.22;
+        chenStyle.w2 = amber;
+        chenStyle.w3 = 0.08;
+      } else if (feature.lane === "ambient") {
+        chenStyle.w0 = 0.38;
+        chenStyle.w1 = 0.22;
+        chenStyle.w2 = 0.0;
+        chenStyle.w3 = 0.20;
+      } else if (binding.radialScale > 0.9) {
+        chenStyle.w0 = 0.56;
+        chenStyle.w1 = 0.27;
+        chenStyle.w2 = 0.0;
+        chenStyle.w3 = 0.12;
+      } else {
+        chenStyle.w0 = 0.66;
+        chenStyle.w1 = 0.29;
+        chenStyle.w2 = 0.0;
+        chenStyle.w3 = 0.04;
+      }
+
+      return chenStyle;
+    }
+
+    function manifoldWeights(feature, binding, time) {
+      const depthGlow = mix(0.06, 0.22, binding.depthLayer);
+      const cyan = feature.lane === "ambient" ? 0.16 : 0.24 + depthGlow;
+      const warm = binding.warmNode ? 0.10 + 0.20 * (0.5 + 0.5 * fastSin01(time * 0.11 + binding.phaseB / TAU)) : 0.0;
+
+      manifoldStyle.w0 = binding.warmNode ? 0.50 : mix(0.58, 0.76, 1 - binding.depthLayer);
+      manifoldStyle.w1 = cyan;
+      manifoldStyle.w2 = warm;
+      manifoldStyle.w3 = feature.lane === "ambient" ? 0.10 : 0.025;
+      return manifoldStyle;
+    }
+
+    function buildPointCloud() {
+      const targets = getRunnerParticleTargets();
+      positions = new Float32Array(targets.count * 3);
+      colors = new Float32Array(targets.count * 3);
+      sizes = new Float32Array(targets.count);
+
+      geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute("particleColor", new THREE.BufferAttribute(colors, 3));
+      geometry.setAttribute("particleSize", new THREE.BufferAttribute(sizes, 1));
+
+      material = new THREE.ShaderMaterial({
+        uniforms: {
+          uDpr: { value: Math.min(window.devicePixelRatio || 1, 2) },
+          uViewportHeight: { value: window.innerHeight },
+          uSizeScale: { value: 0.98 },
+        },
+        vertexShader: `
+          attribute vec3 particleColor;
+          attribute float particleSize;
+          varying vec3 vColor;
+          uniform float uDpr;
+          uniform float uViewportHeight;
+          uniform float uSizeScale;
+
+          void main() {
+            vColor = particleColor;
+            vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+            gl_Position = projectionMatrix * mvPosition;
+            gl_PointSize = max(1.0, particleSize * uViewportHeight * uSizeScale * uDpr);
+          }
+        `,
+        fragmentShader: `
+          precision mediump float;
+          varying vec3 vColor;
+
+          void main() {
+            vec2 uv = gl_PointCoord - vec2(0.5);
+            float d = length(uv);
+            float alpha = (1.0 - smoothstep(0.18, 0.5, d)) * 0.9;
+            alpha += (1.0 - smoothstep(0.0, 0.18, d)) * 0.10;
+            if (alpha < 0.015) discard;
+            gl_FragColor = vec4(vColor, alpha);
+          }
+        `,
+        transparent: true,
+        depthWrite: false,
+        depthTest: true,
+      });
+
+      points = new THREE.Points(geometry, material);
+      points.frustumCulled = false;
+      points.renderOrder = 2;
+      fieldGroup.add(points);
+    }
+
+    function buildLineCloud() {
+      if (lineSegments) {
+        fieldGroup.remove(lineSegments);
+        lineGeometry.dispose();
+        lineMaterial.dispose();
+      }
+
+      const targets = getRunnerParticleTargets();
+      lineCount = MAX_MANIFOLD_LINES;
+      linePairs = new Uint32Array(lineCount * 2);
+      linePositions = new Float32Array(lineCount * 2 * 3);
+      lineAlphas = new Float32Array(lineCount);
+      lineCutoffs = new Float32Array(lineCount);
+      lineVisibility = new Float32Array(lineCount * 2);
+
+      for (let i = 0; i < lineCount; i++) {
+        const strandId = permuteHash(i, 130) % manifoldStrands.length;
+        const strand = manifoldStrands[strandId];
+        const cross = hash01(i, 131) < 0.18;
+        let a = permuteHash(i, 132) % Math.max(1, strand.length);
+        let source = strand[a] || manifoldBindings[permuteHash(i, 133) % targets.count];
+        let target = null;
+
+        if (cross) {
+          const otherStrand = manifoldStrands[(strandId + 1 + (permuteHash(i, 134) % 4)) % manifoldStrands.length];
+          if (otherStrand.length) {
+            const nearRank = Math.floor(source.rank * (otherStrand.length - 1));
+            target = otherStrand[Math.min(otherStrand.length - 1, Math.max(0, nearRank + (permuteHash(i, 135) % 5) - 2))];
+          }
+        }
+
+        if (!target && strand.length) {
+          const step = 1 + (permuteHash(i, 136) % 5);
+          const direction = hash01(i, 137) < 0.5 ? -1 : 1;
+          const b = Math.min(strand.length - 1, Math.max(0, a + step * direction));
+          target = strand[b] || strand[Math.max(0, Math.min(strand.length - 1, a - step * direction))];
+        }
+
+        if (!target || target.id === source.id) {
+          target = manifoldBindings[permuteHash(i, 138) % targets.count];
+        }
+
+        linePairs[i * 2] = source.id;
+        linePairs[i * 2 + 1] = target.id;
+        lineAlphas[i] = cross ? 0.30 : mix(0.28, 0.82, hash01(i, 139));
+        lineCutoffs[i] = Math.pow(hash01(i, 140), 1.18);
+      }
+
+      lineGeometry = new THREE.BufferGeometry();
+      lineGeometry.setAttribute("position", new THREE.BufferAttribute(linePositions, 3));
+      lineGeometry.setAttribute("lineAlpha", new THREE.BufferAttribute(lineVisibility, 1));
+      lineMaterial = new THREE.ShaderMaterial({
+        uniforms: {
+          uColor: { value: new THREE.Color(0x7cceff) },
+          uOpacity: { value: 0 },
+        },
+        vertexShader: `
+          attribute float lineAlpha;
+          varying float vLineAlpha;
+
+          void main() {
+            vLineAlpha = lineAlpha;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          precision mediump float;
+          uniform vec3 uColor;
+          uniform float uOpacity;
+          varying float vLineAlpha;
+
+          void main() {
+            float alpha = vLineAlpha * uOpacity;
+            if (alpha < 0.004) discard;
+            gl_FragColor = vec4(uColor, alpha);
+          }
+        `,
+        transparent: true,
+        depthWrite: false,
+        depthTest: false,
+      });
+      lineSegments = new THREE.LineSegments(lineGeometry, lineMaterial);
+      lineSegments.frustumCulled = false;
+      lineSegments.renderOrder = 4;
+      fieldGroup.add(lineSegments);
+    }
+
+    function rebuildAll() {
+      if (points) {
+        fieldGroup.remove(points);
+        geometry.dispose();
+        material.dispose();
+      }
+
+      buildFlowFeatures();
+      buildChenBindings();
+      buildManifoldBindings();
+      buildPointCloud();
+      buildLineCloud();
+      frameIndex = 0;
+      debugCount.textContent = getRunnerParticleTargets().count.toString();
+    }
+
+    function updateLines(time, segment, speed, effectiveDensity) {
+      if (!lineSegments || lineCount <= 0) return;
+
+      const density = clamp01(effectiveDensity);
+      const linePresence = smoothstepRange(0.35, 1.0, density);
+      const chenPresence = mix(0.62, 0.24, segment.manifoldP) * segment.chenTraceP;
+      const networkPresence = smoothstepRange(0.18, 0.92, segment.p);
+      const baseLineAlpha = segment.lineP * mix(0.028, 0.058, networkPresence) * (0.72 + chenPresence * 0.28);
+      lineMaterial.uniforms.uOpacity.value = baseLineAlpha * mix(0.92, 2.85, linePresence);
+      lineMaterial.uniforms.uColor.value.copy(lineColorCurrent).lerpColors(lineColorLow, lineColorPeak, linePresence);
+      if (lineMaterial.uniforms.uOpacity.value <= 0.002) return;
+
+      const networkP = segment.networkP;
+      const orbitLength = 0.00004 + segment.lineStretchP * 0.00020 + segment.unfoldP * 0.00018;
+      const feather = 0.055;
+
+      for (let i = 0; i < lineCount; i++) {
+        const phase = (i * 0.61803398875 + time * speed * 0.004 + hash01(i, 90) * 0.04) % 1;
+        const radialScale = mix(0.72, 1.04, hash01(i, 91));
+        const k = i * 6;
+        sampleChenAtPhase(phase, chenPosition, radialScale);
+        sampleChenAtPhase(phase + orbitLength + hash01(i, 92) * orbitLength * 0.8, orbitAheadPosition, radialScale);
+
+        const a = linePairs[i * 2] * 3;
+        const b = linePairs[i * 2 + 1] * 3;
+        const alpha = lineAlphas[i];
+        const visibility = smoothstepRange(lineCutoffs[i] - feather, lineCutoffs[i] + feather, density);
+        const vertexAlpha = visibility * alpha * mix(0.86, 1.24, linePresence);
+        const localNetworkP = clamp01(networkP * alpha + segment.manifoldP * (1 - alpha) * 0.55);
+
+        linePositions[k] = mix(chenPosition.x, positions[a], localNetworkP);
+        linePositions[k + 1] = mix(chenPosition.y, positions[a + 1], localNetworkP);
+        linePositions[k + 2] = mix(chenPosition.z, positions[a + 2], localNetworkP);
+        linePositions[k + 3] = mix(orbitAheadPosition.x, positions[b], localNetworkP);
+        linePositions[k + 4] = mix(orbitAheadPosition.y, positions[b + 1], localNetworkP);
+        linePositions[k + 5] = mix(orbitAheadPosition.z, positions[b + 2], localNetworkP);
+        lineVisibility[i * 2] = vertexAlpha;
+        lineVisibility[i * 2 + 1] = vertexAlpha;
+      }
+
+      lineGeometry.attributes.position.needsUpdate = true;
+      lineGeometry.attributes.lineAlpha.needsUpdate = true;
+    }
+
+    function updateCamera(progress, state) {
+      const vFov = THREE.MathUtils.degToRad(camera.fov);
+      const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+      const runnerBounds = getRunnerBounds();
+      const runnerWidth = Math.max(0.72, runnerBounds.size[2]);
+      const runnerHeight = Math.max(1.0, runnerBounds.size[1]);
+      const runnerDistanceForWidth = runnerWidth / (2 * Math.tan(hFov / 2));
+      const runnerDistanceForHeight = runnerHeight / (2 * Math.tan(vFov / 2));
+      const runnerDistance = Math.max(2.35, runnerDistanceForWidth, runnerDistanceForHeight) * 1.14;
+      const flowDistanceForWidth = (FLOW_WIDTH * 1.92) / (2 * Math.tan(hFov / 2));
+      const flowDistanceForHeight = 1.34 / (2 * Math.tan(vFov / 2));
+      const flowDistance = Math.max(flowDistanceForWidth, flowDistanceForHeight) * 0.92;
+      const chenDistanceForWidth = 1.78 / (2 * Math.tan(hFov / 2));
+      const chenDistanceForHeight = 1.38 / (2 * Math.tan(vFov / 2));
+      const chenDistance = Math.max(1.58, chenDistanceForWidth, chenDistanceForHeight) * 0.96;
+      const manifoldDistanceForWidth = 4.02 / (2 * Math.tan(hFov / 2));
+      const manifoldDistanceForHeight = 1.82 / (2 * Math.tan(vFov / 2));
+      const manifoldDistance = Math.max(1.82, manifoldDistanceForWidth, manifoldDistanceForHeight) * 0.96;
+
+      const flowP = smoothstepRange(0.17, 0.30, progress);
+      const chenP = smoothstepRange(0.41, 0.56, progress);
+      const manifoldP = smoothstepRange(0.74, 1.0, progress);
+      let distance = mix(runnerDistance, flowDistance, flowP);
+      distance = mix(distance, chenDistance, chenP);
+      distance = mix(distance, manifoldDistance, manifoldP);
+      const targetY = mix(0.06, 0.005, manifoldP) + mix(0, -0.025, flowP * (1 - chenP));
+      const sideDrift = mix(0.0, 0.10, state.runnerFlowP) - mix(0.0, 0.06, manifoldP);
+
+      camera.position.set(distance, 0.05 + sideDrift, 0);
+      camera.lookAt(0, targetY, 0);
+      viewHalfHeight = Math.tan(vFov / 2) * distance;
+      viewHalfWidth = viewHalfHeight * camera.aspect;
+      mouse.worldZ = mouse.ndcX * viewHalfWidth;
+      mouse.worldY = targetY + mouse.ndcY * viewHalfHeight;
+    }
+
+    function applyMouseAttraction(k, strength) {
+      if (!mouse.active || strength <= 0) return;
+
+      const dx = -positions[k] * 0.28;
+      const dy = mouse.worldY - positions[k + 1];
+      const dz = mouse.worldZ - positions[k + 2];
+      const r2 = dx * dx + dy * dy + dz * dz;
+      const pull = strength * Math.exp(-r2 / 0.11);
+
+      positions[k] += dx * pull;
+      positions[k + 1] += dy * pull;
+      positions[k + 2] += dz * pull;
+    }
+
+    function currentTime(now) {
+      if (paused) return pausedAt;
+      return (now - startedAt) / 1000;
+    }
+
+    function render(now) {
+      requestAnimationFrame(render);
+      if (!points || loadingQuality) return;
+
+      const elapsed = currentTime(now);
+      const wallTime = now * 0.001;
+      const dt = Math.max(1, now - previousFrameTime);
+      const dtSeconds = Math.min(0.05, dt / 1000);
+      previousFrameTime = now;
+      fps = mix(fps, Math.min(120, 1000 / dt), 0.08);
+
+      updateSnapTween(wallTime);
+      updateScrollTarget();
+      updateScrollDirection(wallTime);
+      updateTransitionSnapAssist(wallTime);
+      const speed = Number(controlSpeed.value);
+      autoplayProgress = autoplayValue(elapsed, speed);
+
+      if (inputMode === "autoplay") {
+        writeTargetProgress("autoplay", autoplayProgress);
+      } else if (inputMode === "scroll") {
+        writeTargetProgress("scroll", scrollProgress);
+      } else {
+        writeTargetProgress("slider", rawSliderValue);
+      }
+
+      lastDisplayedProgress = displayedProgress;
+      displayedProgress += (targetProgress - displayedProgress) * PROGRESS_SMOOTHING;
+      if (Math.abs(displayedProgress - targetProgress) < 0.0004) displayedProgress = targetProgress;
+
+      if (displayedProgress < lastDisplayedProgress - 0.08 && targetProgress >= lastDisplayedProgress - 0.01) {
+        console.warn(`[progress] displayedProgress stepped backward in ${inputMode} mode`);
+      }
+
+      if (inputMode === "slider") {
+        controlProgress.value = rawSliderValue.toFixed(3);
+      } else {
+        controlProgress.value = displayedProgress.toFixed(3);
+      }
+      updateProgressLockReason();
+      updateStageLighting(displayedProgress, dtSeconds);
+
+      updateRunnerParticles(elapsed);
+      const state = assemblyState(displayedProgress);
+      const segmentDebug = segmentDiagnostics(displayedProgress);
+      const flowChenSegment = segmentFlowChenProgress(state.flowChenP);
+      const manifoldSegment = segmentChenManifoldProgress(state.chenManifoldP);
+      const targets = getRunnerParticleTargets();
+      const updateStyle = frameIndex % 2 === 0 || displayedProgress < 0.01 || displayedProgress > 0.99;
+      const mouseStrength = 0.012 + smoothstepRange(0.24, 1.0, displayedProgress) * 0.010;
+      const depthScale = Number(controlDepthScale.value);
+      const parallaxSpeed = Number(controlParallaxSpeed.value);
+      frameIndex += 1;
+
+      updateCamera(displayedProgress, state);
+      const copyDebug = updateCopy(displayedProgress, state, wallTime, dtSeconds);
+
+      for (let i = 0; i < targets.count; i++) {
+        const feature = flowFeatures[i];
+        const binding = chenBindings[i];
+        const manifold = manifoldBindings[i];
+        const k = i * 3;
+        const w = i * 4;
+        const runnerX = targets.positions[k];
+        const runnerY = targets.positions[k + 1];
+        const runnerZ = targets.positions[k + 2];
+        const flow = computeFlowPosition(feature, elapsed * speed, flowPosition);
+        let flowX = flow.x;
+        let flowY = flow.y;
+        let flowZ = flow.z;
+        const runnerFlowLocal = state.runnerFlowP;
+
+        if (runnerFlowLocal > 0 && runnerFlowLocal < 1 && state.flowChenP <= 0) {
+          const expand = Math.sin(runnerFlowLocal * Math.PI) * 0.18;
+          flowX += (hash01(i, 150) - 0.5) * expand * 0.55;
+          flowY += (hash01(i, 151) - 0.5) * expand * 0.42;
+          flowZ += (hash01(i, 152) - 0.5) * expand * 1.1;
+        }
+
+        let posX = mix(runnerX, flowX, runnerFlowLocal);
+        let posY = mix(runnerY, flowY, runnerFlowLocal);
+        let posZ = mix(runnerZ, flowZ, runnerFlowLocal);
+
+        if (state.flowChenP > 0) {
+          const flowTighten = flowChenSegment.flowToStreamP;
+          flowX *= mix(1.0, 0.62, flowTighten);
+          flowY *= mix(1.0, 0.84, flowTighten * 0.72);
+          flowZ *= flowChenSegment.flowLengthScale;
+          let streamX = flowX;
+          let streamY = flowY;
+          let streamZ = flowZ;
+
+          if (flowChenSegment.streamP > 0) {
+            flowPosition.set(flowX, flowY, flowZ);
+            const stream = computeTwistedStreamPosition(flowPosition, feature, elapsed * speed, streamPosition);
+            streamX = mix(flowX, stream.x, flowChenSegment.streamP);
+            streamY = mix(flowY, stream.y, flowChenSegment.streamP);
+            streamZ = mix(flowZ, stream.z, flowChenSegment.streamP);
+          }
+
+          const chen = computeChenPosition(binding, feature, elapsed, speed, chenPosition);
+          const localChenBlend = flowChenSegment.chenMixP <= 0
+            ? 0
+            : clamp01((flowChenSegment.chenMixP - feature.delay * 0.12) / (1 - feature.delay * 0.12));
+          posX = mix(streamX, chen.x, localChenBlend);
+          posY = mix(streamY, chen.y, localChenBlend);
+          posZ = mix(streamZ, chen.z, localChenBlend);
+        }
+
+        if (state.chenManifoldP > 0) {
+          const chen = computeChenPosition(binding, feature, elapsed, speed, chenPosition);
+          const unfolded = computeUnfoldedChenPosition(binding, feature, chen, elapsed, speed, manifoldSegment, flowPosition);
+          const manifoldPos = computeManifoldPosition(manifold, feature, elapsed, speed, depthScale, parallaxSpeed, streamPosition);
+          const bridgeX = mix(chen.x, unfolded.x, manifoldSegment.unfoldP);
+          const bridgeY = mix(chen.y, unfolded.y, manifoldSegment.unfoldP);
+          const bridgeZ = mix(chen.z, unfolded.z, manifoldSegment.unfoldP);
+          const localManifoldBlend = manifoldSegment.manifoldP <= 0
+            ? 0
+            : clamp01((manifoldSegment.manifoldP - feature.delay * 0.10) / (1 - feature.delay * 0.10));
+          posX = mix(bridgeX, manifoldPos.x, localManifoldBlend);
+          posY = mix(bridgeY, manifoldPos.y, localManifoldBlend);
+          posZ = mix(bridgeZ, manifoldPos.z, localManifoldBlend);
+        }
+
+        positions[k] = posX;
+        positions[k + 1] = posY;
+        positions[k + 2] = posZ;
+        applyMouseAttraction(k, mouseStrength);
+
+        if (updateStyle) {
+          const c = i * 3;
+          const cadence = feature.footSpark ? 0.5 + 0.5 * fastSin01(elapsed * 0.62 + feature.phase / TAU) : 0;
+          feature.lastAmber = cadence * cadence * cadence;
+          const fw = flowWeights(feature);
+          const cw = chenWeights(feature, binding);
+          const mw = manifoldWeights(feature, manifold, elapsed);
+          const flowColorP = state.runnerFlowP;
+          const chenColorP = flowChenSegment.chenMixP;
+          const manifoldColorP = smoothstepRange(0.16, 0.82, state.chenManifoldP);
+          let w0 = mix(targets.colorWeights[w], fw.w0, flowColorP);
+          let w1 = mix(targets.colorWeights[w + 1], fw.w1, flowColorP);
+          let w2 = mix(targets.colorWeights[w + 2], fw.w2, flowColorP);
+          let w3 = mix(targets.colorWeights[w + 3], fw.w3, flowColorP);
+          w0 = mix(w0, cw.w0, chenColorP);
+          w1 = mix(w1, cw.w1, chenColorP);
+          w2 = mix(w2, cw.w2, chenColorP);
+          w3 = mix(w3, cw.w3, chenColorP);
+          w0 = mix(w0, mw.w0, manifoldColorP);
+          w1 = mix(w1, mw.w1, manifoldColorP);
+          w2 = mix(w2, mw.w2, manifoldColorP);
+          w3 = mix(w3, mw.w3, manifoldColorP);
+          setRgbFromWeights(
+            colors,
+            c,
+            w0,
+            w1,
+            w2,
+            w3
+          );
+
+          let size = mix(targets.sizes[i], feature.flowSize, flowColorP);
+          size = mix(size, feature.flowSize * mix(0.84, 1.16, hash01(i, 93)), chenColorP);
+          size = mix(size, manifold.size, manifoldColorP);
+          sizes[i] = size;
+        }
+      }
+
+      geometry.attributes.position.needsUpdate = true;
+      if (updateStyle) {
+        geometry.attributes.particleColor.needsUpdate = true;
+        geometry.attributes.particleSize.needsUpdate = true;
+      }
+
+      const effectiveLineDensity = updateEffectiveLineDensity(elapsed, displayedProgress);
+      let lineSegment = {
+        p: 0,
+        lineP: 0,
+        manifoldP: 0,
+        chenTraceP: 1,
+        networkP: 0,
+        lineStretchP: 0,
+        unfoldP: 0,
+      };
+
+      if (state.flowChenP > 0 && state.chenManifoldP <= 0) {
+        lineSegment = {
+          p: state.flowChenP,
+          lineP: flowChenSegment.lineP,
+          manifoldP: 0,
+          chenTraceP: 1,
+          networkP: 0,
+          lineStretchP: 0,
+          unfoldP: 0,
+        };
+      }
+
+      if (displayedProgress >= 0.48 && state.chenManifoldP <= 0) {
+        lineSegment = {
+          p: 0.4,
+          lineP: 1,
+          manifoldP: 0,
+          chenTraceP: 1,
+          networkP: 0,
+          lineStretchP: 0,
+          unfoldP: 0,
+        };
+      }
+
+      if (state.chenManifoldP > 0) {
+        lineSegment = manifoldSegment;
+      }
+
+      updateLines(elapsed, lineSegment, speed, effectiveLineDensity);
+      const actualRotation = Number(controlRotationSpeed.value) * elapsed;
+      const attractorRotationP = smoothstepRange(0.41, 0.56, displayedProgress);
+      const parallaxRotation = state.chenManifoldP * (parallaxSpeed * elapsed * 0.055 + 0.055 * fastSin01(elapsed * 0.026));
+      fieldGroup.rotation.y = attractorRotationP * 0.54 + actualRotation * 0.12 * attractorRotationP + parallaxRotation;
+      fieldGroup.rotation.x = attractorRotationP * (0.07 + 0.035 * fastSin01(elapsed * 0.035)) + state.chenManifoldP * (0.035 * fastCos01(elapsed * 0.021) - 0.018);
+      renderer.render(scene, camera);
+
+      if (now - previousDebugTime > 120) {
+        previousDebugTime = now;
+        debugFps.textContent = Math.round(fps).toString();
+        debugCount.textContent = targets.count.toString();
+        debugScroll.textContent = scrollProgress.toFixed(3);
+        debugScrollY.textContent = Math.round(currentScrollY).toString();
+        debugMaxScrollY.textContent = Math.round(maxScrollY).toString();
+        debugRawScroll.textContent = rawScrollProgress.toFixed(3);
+        debugDisplayed.textContent = displayedProgress.toFixed(3);
+        debugScene.textContent = state.scene;
+        debugLocal.textContent = state.local.toFixed(3);
+        debugSegmentStart.textContent = segmentDebug.start.toFixed(3);
+        debugSegmentEnd.textContent = segmentDebug.end.toFixed(3);
+        debugSegmentType.textContent = segmentDebug.type;
+        debugSegmentLocal.textContent = segmentDebug.local.toFixed(3);
+        debugFlowToChen.textContent = segmentDebug.flowToChenP.toFixed(3);
+        debugChenTo20d.textContent = segmentDebug.chenTo20dP.toFixed(3);
+        debugStable.textContent = copyDebug.sceneStable ? "true" : "false";
+        debugStableTime.textContent = `${copyDebug.timeInStable.toFixed(3)}s`;
+        debugAtBottom.textContent = isAtBottom ? "true" : "false";
+        debugBreathingActive.textContent = breathingActive ? "true" : "false";
+        debugWheelDelta.textContent = lastWheelDeltaY.toFixed(1);
+        debugScrollDirection.textContent = lastScrollDirection;
+        debugInTransition.textContent = isInTransitionSegment ? "true" : "false";
+        debugSnapPending.textContent = snapPending ? "true" : "false";
+        debugIsSnapping.textContent = isSnapping ? "true" : "false";
+        debugSnapTarget.textContent = snapTargetProgress === null ? "none" : snapTargetProgress.toFixed(3);
+        debugSnapStart.textContent = snapStartProgress === null ? "none" : snapStartProgress.toFixed(3);
+        debugSnapDuration.textContent = `${snapDuration.toFixed(3)}s`;
+        debugSnapElapsed.textContent = `${snapElapsed.toFixed(3)}s`;
+        debugSnapEase.textContent = snapEaseT.toFixed(3);
+        debugSnapCanceled.textContent = snapCanceledByUser ? "true" : "false";
+        debugTimeSinceScroll.textContent = `${timeSinceLastScroll.toFixed(3)}s`;
+        debugSnapReason.textContent = snapReason;
+        debugLockReason.textContent = lockReason;
+        debugLineDensity.textContent = effectiveLineDensity.toFixed(3);
+        debugSpeed.textContent = speed.toFixed(2);
+        debugMode.textContent = inputMode;
+        debugTarget.textContent = targetProgress.toFixed(3);
+        debugSlider.textContent = rawSliderValue.toFixed(3);
+      }
+    }
+
+    controlProgress.addEventListener("input", () => {
+      setInputMode("slider");
+      syncSliderTo(Number(controlProgress.value));
+      writeTargetProgress("slider", rawSliderValue);
+    });
+
+    controlsToggle.addEventListener("click", () => {
+      setControlsVisible(!controlsVisible);
+      setMobileMenuOpen(false);
+    });
+
+    mobileMenuToggle.addEventListener("click", () => {
+      setMobileMenuOpen(!nav.classList.contains("is-menu-open"));
+    });
+
+    controlAutoplay.addEventListener("click", () => {
+      if (inputMode === "autoplay") {
+        setInputMode("slider");
+        syncSliderTo(displayedProgress);
+        writeTargetProgress("slider", rawSliderValue);
+      } else {
+        setInputMode("autoplay");
+        writeTargetProgress("autoplay", autoplayProgress);
+      }
+    });
+
+    controlPause.addEventListener("click", () => {
+      paused = !paused;
+      controlPause.textContent = paused ? "Play" : "Pause";
+      if (paused) {
+        pausedAt = (performance.now() - startedAt) / 1000;
+      } else {
+        startedAt = performance.now() - pausedAt * 1000;
+      }
+    });
+
+    controlQuality.addEventListener("change", () => {
+      loadingQuality = true;
+      setRunnerQuality(Number(controlQuality.value));
+      rebuildAll();
+      loadingQuality = false;
+    });
+
+    controlLineDensity.addEventListener("input", () => {
+      if (!lineDensityAutoActive) {
+        manualLineDensity = Number(controlLineDensity.value);
+      }
+    });
+
+    controlBreathingPulse.addEventListener("change", () => {
+      if (!controlBreathingPulse.checked && lineDensityAutoActive) {
+        lineDensityAutoActive = false;
+        controlLineDensity.value = manualLineDensity.toFixed(3);
+      }
+    });
+
+    for (const button of navButtons) {
+      button.addEventListener("click", () => {
+        setMobileMenuOpen(false);
+        setInputMode("scroll");
+        scrollToProgress(Number(button.dataset.jump));
+      });
+    }
+
+    for (const link of jumpLinks) {
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        setMobileMenuOpen(false);
+        setInputMode("scroll");
+        scrollToProgress(Number(link.dataset.jumpLink));
+      });
+    }
+
+    controlScrollTest.addEventListener("change", () => {
+      if (controlScrollTest.checked) {
+        snapSuppressUntil = performance.now() / 1000 + 0.5;
+        setInputMode("scroll");
+        updateScrollTarget();
+        writeTargetProgress("scroll", scrollProgress);
+      } else {
+        setInputMode("slider");
+        syncSliderTo(displayedProgress);
+        writeTargetProgress("slider", rawSliderValue);
+      }
+    });
+
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (material) {
+        material.uniforms.uDpr.value = Math.min(window.devicePixelRatio || 1, 2);
+        material.uniforms.uViewportHeight.value = window.innerHeight;
+      }
+      updateScrollTarget();
+    });
+
+    window.addEventListener("wheel", (event) => {
+      const wallTime = performance.now() / 1000;
+      lastWheelDeltaY = event.deltaY;
+      if (Math.abs(event.deltaY) > 0.01) {
+        lastScrollDirection = event.deltaY > 0 ? "down" : "up";
+        lastUserScrollTime = wallTime;
+      }
+      if (isSnapping) {
+        cancelTransitionSnap("user wheel canceled snap", true);
+      }
+    }, { passive: true });
+
+    window.addEventListener("touchmove", () => {
+      const wallTime = performance.now() / 1000;
+      lastUserScrollTime = wallTime;
+      if (isSnapping) {
+        cancelTransitionSnap("user touch canceled snap", true);
+      }
+    }, { passive: true });
+
+    window.addEventListener("pointerdown", () => {
+      if (isSnapping) {
+        cancelTransitionSnap("user pointer canceled snap", true);
+      }
+    }, { passive: true });
+
+    window.addEventListener("keydown", (event) => {
+      const target = event.target;
+      const isTypingControl = target && (
+        target.tagName === "INPUT" ||
+        target.tagName === "SELECT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable
+      );
+      if (!isTypingControl && event.key.toLowerCase() === "d") {
+        setControlsVisible(!controlsVisible);
+        return;
+      }
+
+      const scrollKeys = ["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "];
+      if (!scrollKeys.includes(event.key)) return;
+      const wallTime = performance.now() / 1000;
+      if (event.key === "ArrowDown" || event.key === "PageDown" || event.key === " " || event.key === "End") {
+        lastScrollDirection = "down";
+      } else {
+        lastScrollDirection = "up";
+      }
+      lastUserScrollTime = wallTime;
+      if (isSnapping) {
+        cancelTransitionSnap("user key canceled snap", true);
+      }
+    }, { passive: true });
+
+    window.addEventListener("scroll", () => {
+      const wallTime = performance.now() / 1000;
+      const nextScrollY = Math.min(getMaxScrollY(), Math.max(0, window.scrollY || window.pageYOffset || 0));
+      const delta = nextScrollY - previousScrollY;
+      previousScrollY = nextScrollY;
+      if (Math.abs(delta) > 0.5) {
+        if (!isSnapping && wallTime >= snapSuppressUntil) {
+          lastScrollDirection = delta > 0 ? "down" : "up";
+          lastUserScrollTime = wallTime;
+        }
+      }
+    }, { passive: true });
+
+    window.addEventListener("pointermove", (event) => {
+      mouse.active = true;
+      mouse.ndcX = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.ndcY = -(event.clientY / window.innerHeight) * 2 + 1;
+    });
+
+    window.addEventListener("pointerleave", () => {
+      mouse.active = false;
+    });
+
+    const initialProgressRaw = new URLSearchParams(window.location.search).get("progress");
+    const initialProgressParam = Number(initialProgressRaw);
+    if (initialProgressRaw !== null && Number.isFinite(initialProgressParam)) {
+      setInputMode("slider");
+      syncSliderTo(initialProgressParam);
+      writeTargetProgress("slider", rawSliderValue);
+      displayedProgress = targetProgress;
+      lastDisplayedProgress = targetProgress;
+    }
+
+    buildChenLeeTrajectory();
+    await loadRunnerAssets({ quality: DEFAULT_QUALITY });
+    rebuildAll();
+    updateScrollTarget();
+    if (initialProgressRaw === null) {
+      writeTargetProgress("scroll", scrollProgress);
+      displayedProgress = targetProgress;
+      lastDisplayedProgress = targetProgress;
+    }
+    updateStageLighting(displayedProgress, 1);
+    startedAt = performance.now();
+    previousFrameTime = startedAt;
+    requestAnimationFrame(render);
+  </script>
+</body>
+</html>

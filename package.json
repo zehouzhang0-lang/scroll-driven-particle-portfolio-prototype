@@ -1,0 +1,12 @@
+{
+  "name": "scroll-driven-particle-portfolio-prototype",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "three": "^0.181.2"
+  }
+}
